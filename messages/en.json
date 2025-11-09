@@ -26,18 +26,28 @@
 		"login": "Login",
 		"email": "Email",
 		"password": "Password",
+		"name": "Name",
 		"signIn": "Sign In",
 		"signingIn": "Signing in...",
+		"signUp": "Sign Up",
+		"signingUp": "Signing up...",
 		"signInWith": "Sign in with {provider}",
 		"dontHaveAccount": "Don't have an account?",
+		"alreadyHaveAccount": "Already have an account?",
 		"createAccount": "Create an account",
+		"backToLogin": "Back to login",
 		"welcome": "Welcome to CoinJar",
+		"welcomeSignup": "Create your CoinJar account",
 		"subtitle": "Track your Livret A, PEE and PEA savings in one place",
+		"subtitleSignup": "Start tracking your savings today",
 		"continueWith": "Continue with Google",
 		"orContinueWith": "Or continue with",
 		"emailPlaceholder": "example@email.com",
+		"namePlaceholder": "John Doe",
 		"passwordPlaceholder": "••••••••",
-		"invalidCredentials": "Invalid email or password"
+		"invalidCredentials": "Invalid email or password",
+		"signupSuccess": "Account created successfully",
+		"signupError": "Error creating account"
 	},
 	"dashboard": {
 		"title": "Overview",
@@ -197,6 +207,8 @@
 		"peaNameRequired": "PEA name is required",
 		"companyNameRequired": "Company name is required",
 		"sharePriceMustBeNumber": "Share price must be a number",
-		"sharePricePositive": "Share price must be positive"
+		"sharePricePositive": "Share price must be positive",
+		"emailInvalid": "Invalid email address",
+		"passwordMinLength": "Password must be at least 8 characters"
 	}
 }

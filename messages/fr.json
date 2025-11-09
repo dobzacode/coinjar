@@ -26,18 +26,28 @@
 		"login": "Connexion",
 		"email": "E-mail",
 		"password": "Mot de passe",
+		"name": "Nom",
 		"signIn": "Se connecter",
 		"signingIn": "Connexion...",
+		"signUp": "S'inscrire",
+		"signingUp": "Inscription...",
 		"signInWith": "Se connecter avec {provider}",
 		"dontHaveAccount": "Vous n'avez pas de compte ?",
+		"alreadyHaveAccount": "Vous avez déjà un compte ?",
 		"createAccount": "Créer un compte",
+		"backToLogin": "Retour à la connexion",
 		"welcome": "Bienvenue sur CoinJar",
+		"welcomeSignup": "Créez votre compte CoinJar",
 		"subtitle": "Suivez vos épargnes Livret A, PEE et PEA en un seul endroit",
+		"subtitleSignup": "Commencez à suivre vos épargnes dès aujourd'hui",
 		"continueWith": "Continuer avec Google",
 		"orContinueWith": "Ou continuer avec",
 		"emailPlaceholder": "exemple@email.com",
+		"namePlaceholder": "Jean Dupont",
 		"passwordPlaceholder": "••••••••",
-		"invalidCredentials": "Email ou mot de passe incorrect"
+		"invalidCredentials": "Email ou mot de passe incorrect",
+		"signupSuccess": "Compte créé avec succès",
+		"signupError": "Erreur lors de la création du compte"
 	},
 	"dashboard": {
 		"title": "Vue d'ensemble",
@@ -197,6 +207,8 @@
 		"peaNameRequired": "Le nom du PEA est requis",
 		"companyNameRequired": "Le nom de l'entreprise est requis",
 		"sharePriceMustBeNumber": "Le prix de l'action doit être un nombre",
-		"sharePricePositive": "Le prix de l'action doit être positif"
+		"sharePricePositive": "Le prix de l'action doit être positif",
+		"emailInvalid": "Adresse e-mail invalide",
+		"passwordMinLength": "Le mot de passe doit contenir au moins 8 caractères"
 	}
 }
