@@ -1,5 +1,6 @@
 import { Toaster } from '@/components/ui/sonner'
 import { routing } from '@/i18n/routing'
+import { QueryProvider } from '@/lib/query-client'
 import type { Metadata } from 'next'
 import { NextIntlClientProvider } from 'next-intl'
 import { getMessages, setRequestLocale } from 'next-intl/server'
@@ -36,10 +37,12 @@ export default async function RootLayout({
 		<html lang={locale} suppressHydrationWarning>
 			<body className={outfit.className}>
 				<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-					<NextIntlClientProvider messages={messages}>
-						{children}
-						<Toaster />
-					</NextIntlClientProvider>
+					<QueryProvider>
+						<NextIntlClientProvider messages={messages}>
+							{children}
+							<Toaster />
+						</NextIntlClientProvider>
+					</QueryProvider>
 				</ThemeProvider>
 			</body>
 		</html>

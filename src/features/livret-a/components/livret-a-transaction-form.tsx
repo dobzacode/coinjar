@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/select'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus } from 'lucide-react'
-import { useLocale, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -39,8 +39,6 @@ import {
 
 export function LivretATransactionForm() {
 	const [open, setOpen] = useState(false)
-	const [isLoading, setIsLoading] = useState(false)
-	const locale = useLocale()
 	const t = useTranslations('livretA')
 	const tCommon = useTranslations('common')
 	const tValidation = useTranslations('validation')
@@ -56,26 +54,14 @@ export function LivretATransactionForm() {
 	})
 
 	async function onSubmit(data: LivretATransactionInput) {
-		setIsLoading(true)
 		try {
 			await addTransaction(data)
-
-			toast.success(
-				locale === 'fr'
-					? 'Transaction ajoutée avec succès'
-					: 'Transaction added successfully'
-			)
+			toast.success(t('transactionAddedSuccess'))
 			setOpen(false)
 			form.reset()
 		} catch (error) {
 			console.error(error)
-			toast.error(
-				locale === 'fr'
-					? "Erreur lors de l'ajout de la transaction"
-					: 'Error adding transaction'
-			)
-		} finally {
-			setIsLoading(false)
+			toast.error(t('errorAddingTransaction'))
 		}
 	}
 
@@ -156,14 +142,10 @@ export function LivretATransactionForm() {
 							name="description"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>
-										{locale === 'fr'
-											? 'Description (optionnel)'
-											: 'Description (optional)'}
-									</FormLabel>
+									<FormLabel>{t('descriptionOptional')}</FormLabel>
 									<FormControl>
 										<Input
-											placeholder={locale === 'fr' ? 'Note...' : 'Note...'}
+											placeholder={t('descriptionPlaceholder')}
 											{...field}
 										/>
 									</FormControl>
@@ -179,8 +161,10 @@ export function LivretATransactionForm() {
 							>
 								{tCommon('cancel')}
 							</Button>
-							<Button type="submit" disabled={isLoading}>
-								{isLoading ? tCommon('loading') : tCommon('save')}
+							<Button type="submit" disabled={form.formState.isSubmitting}>
+								{form.formState.isSubmitting
+									? tCommon('loading')
+									: tCommon('save')}
 							</Button>
 						</div>
 					</form>

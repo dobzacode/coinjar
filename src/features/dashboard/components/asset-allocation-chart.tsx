@@ -14,7 +14,7 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from '@/components/ui/chart'
-import { useLocale, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { Cell, Pie, PieChart } from 'recharts'
 
 interface AssetAllocationChartProps {
@@ -29,7 +29,6 @@ export function AssetAllocationChart({
 	pea,
 }: AssetAllocationChartProps) {
 	const t = useTranslations('dashboard')
-	const locale = useLocale()
 	const total = livretA + pee + pea
 
 	const data = [
@@ -54,21 +53,15 @@ export function AssetAllocationChart({
 
 	const chartConfig = {
 		value: {
-			label: locale === 'fr' ? 'Valeur' : 'Value',
+			label: t('value'),
 		},
 	}
 
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>
-					{locale === 'fr' ? 'Répartition des actifs' : 'Asset allocation'}
-				</CardTitle>
-				<CardDescription>
-					{locale === 'fr'
-						? 'Distribution de votre patrimoine'
-						: 'Distribution of your wealth'}
-				</CardDescription>
+				<CardTitle>{t('assetAllocation')}</CardTitle>
+				<CardDescription>{t('assetAllocationDescription')}</CardDescription>
 			</CardHeader>
 			<CardContent>
 				<ChartContainer config={chartConfig} className="h-[300px] w-full">

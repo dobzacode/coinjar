@@ -20,7 +20,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Settings } from 'lucide-react'
-import { useLocale, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -37,8 +37,6 @@ export function PeeAccountForm({
 	sharePrice,
 }: PeeAccountFormProps) {
 	const [open, setOpen] = useState(false)
-	const [isLoading, setIsLoading] = useState(false)
-	const locale = useLocale()
 	const t = useTranslations('pee')
 	const tCommon = useTranslations('common')
 	const tValidation = useTranslations('validation')
@@ -52,24 +50,13 @@ export function PeeAccountForm({
 	})
 
 	async function onSubmit(data: PeeAccountInput) {
-		setIsLoading(true)
 		try {
 			await updatePeeAccount(data)
-			toast.success(
-				locale === 'fr'
-					? 'Compte mis à jour avec succès'
-					: 'Account updated successfully'
-			)
+			toast.success(t('accountUpdatedSuccess'))
 			setOpen(false)
 		} catch (error) {
 			console.error(error)
-			toast.error(
-				locale === 'fr'
-					? 'Erreur lors de la mise à jour du compte'
-					: 'Error updating account'
-			)
-		} finally {
-			setIsLoading(false)
+			toast.error(t('errorUpdatingAccount'))
 		}
 	}
 
@@ -83,13 +70,9 @@ export function PeeAccountForm({
 			</DialogTrigger>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>
-						{locale === 'fr' ? 'Modifier le compte PEE' : 'Update PEE account'}
-					</DialogTitle>
+					<DialogTitle>{t('updatePeeAccount')}</DialogTitle>
 					<DialogDescription>
-						{locale === 'fr'
-							? 'Mettez à jour les informations de votre PEE'
-							: 'Update your PEE account information'}
+						{t('updatePeeAccountDescription')}
 					</DialogDescription>
 				</DialogHeader>
 				<Form {...form}>
@@ -99,14 +82,10 @@ export function PeeAccountForm({
 							name="companyName"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>
-										{locale === 'fr' ? "Nom de l'entreprise" : 'Company name'}
-									</FormLabel>
+									<FormLabel>{t('companyName')}</FormLabel>
 									<FormControl>
 										<Input
-											placeholder={
-												locale === 'fr' ? 'Mon entreprise' : 'My company'
-											}
+											placeholder={t('companyNamePlaceholder')}
 											{...field}
 										/>
 									</FormControl>
@@ -140,8 +119,10 @@ export function PeeAccountForm({
 							>
 								{tCommon('cancel')}
 							</Button>
-							<Button type="submit" disabled={isLoading}>
-								{isLoading ? tCommon('loading') : tCommon('save')}
+							<Button type="submit" disabled={form.formState.isSubmitting}>
+								{form.formState.isSubmitting
+									? tCommon('loading')
+									: tCommon('save')}
 							</Button>
 						</div>
 					</form>

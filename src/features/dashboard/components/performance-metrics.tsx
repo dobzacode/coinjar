@@ -13,7 +13,7 @@ import {
 	ChartTooltipContent,
 } from '@/components/ui/chart'
 import { formatCurrency, formatPercentage } from '@/lib/utils'
-import { useLocale, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 
 interface PerformanceMetricsProps {
@@ -30,7 +30,6 @@ export function PerformanceMetrics({
 	totalReturn,
 }: PerformanceMetricsProps) {
 	const t = useTranslations('dashboard')
-	const locale = useLocale()
 
 	const data = [
 		{
@@ -44,7 +43,7 @@ export function PerformanceMetrics({
 			label: formatPercentage(livretAYield),
 		},
 		{
-			name: locale === 'fr' ? 'Rendement total' : 'Total return',
+			name: t('totalReturn'),
 			value: totalReturn,
 			label: formatPercentage(totalReturn),
 		},
@@ -52,7 +51,7 @@ export function PerformanceMetrics({
 
 	const chartConfig = {
 		value: {
-			label: locale === 'fr' ? 'Performance' : 'Performance',
+			label: t('performance'),
 			color: 'hsl(var(--primary))',
 		},
 	}
@@ -60,26 +59,15 @@ export function PerformanceMetrics({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>
-					{locale === 'fr' ? 'Performance' : 'Performance'}
-				</CardTitle>
-				<CardDescription>
-					{locale === 'fr'
-						? 'Rendement de vos investissements'
-						: 'Return on your investments'}
-				</CardDescription>
+				<CardTitle>{t('performance')}</CardTitle>
+				<CardDescription>{t('performanceDescription')}</CardDescription>
 			</CardHeader>
 			<CardContent>
 				<ChartContainer config={chartConfig} className="h-[300px] w-full">
 					<BarChart data={data}>
 						<CartesianGrid strokeDasharray="3 3" />
-						<XAxis
-							dataKey="name"
-							tickFormatter={(value) => value.toString()}
-						/>
-						<YAxis
-							tickFormatter={(value) => `${value.toFixed(1)}%`}
-						/>
+						<XAxis dataKey="name" tickFormatter={(value) => value.toString()} />
+						<YAxis tickFormatter={(value) => `${value.toFixed(1)}%`} />
 						<ChartTooltip
 							content={
 								<ChartTooltipContent
@@ -97,7 +85,7 @@ export function PerformanceMetrics({
 				<div className="mt-4 grid grid-cols-2 gap-4">
 					<div className="rounded-lg border bg-card p-3">
 						<p className="text-sm text-muted-foreground">
-							{locale === 'fr' ? 'Plus-value PEA' : 'PEA Capital Gain'}
+							{t('peaCapitalGain')}
 						</p>
 						<p
 							className={`text-lg font-bold ${peaGain >= 0 ? 'text-green-600' : 'text-destructive'}`}
@@ -108,7 +96,7 @@ export function PerformanceMetrics({
 					</div>
 					<div className="rounded-lg border bg-card p-3">
 						<p className="text-sm text-muted-foreground">
-							{locale === 'fr' ? 'Performance PEA' : 'PEA Performance'}
+							{t('peaPerformance')}
 						</p>
 						<p
 							className={`text-lg font-bold ${peaPerformance >= 0 ? 'text-green-600' : 'text-destructive'}`}
@@ -122,4 +110,3 @@ export function PerformanceMetrics({
 		</Card>
 	)
 }
-

@@ -66,18 +66,15 @@ export function WealthEvolutionChart({ data }: WealthEvolutionChartProps) {
 							dataKey="date"
 							tickFormatter={(value) => {
 								const date = new Date(value)
-								return date.toLocaleDateString(
-									locale === 'fr' ? 'fr-FR' : 'en-GB',
-									{
-										month: 'short',
-										year: '2-digit',
-									}
-								)
+								return date.toLocaleDateString(locale, {
+									month: 'short',
+									year: '2-digit',
+								})
 							}}
 						/>
 						<YAxis
 							tickFormatter={(value) =>
-								new Intl.NumberFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', {
+								new Intl.NumberFormat(locale, {
 									style: 'currency',
 									currency: 'EUR',
 									notation: 'compact',
