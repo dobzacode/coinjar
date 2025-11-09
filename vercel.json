@@ -1,0 +1,15 @@
+{
+	"crons": [
+		{
+			"path": "/api/cron/livret-a-interest",
+			"schedule": "0 0 1 1 *"
+		},
+		{
+			"path": "/api/cron/update-etf-prices",
+			"schedule": "0 22 * * 1-5"
+		}
+	]
+}
+
+
+

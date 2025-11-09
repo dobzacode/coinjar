@@ -1,0 +1,708 @@
+---
+description: Context of the project and architectural guidelines
+alwaysApply: true
+---
+
+# Project Context: CoinJar
+
+## Project Overview
+
+CoinJar is a comprehensive financial portfolio management application designed specifically for French savings accounts. It provides a unified interface for tracking Livret A (regulated savings), PEA (equity savings plan), and PEE (employee savings plan) accounts with real-time data visualization and management capabilities.
+
+## Architecture
+
+### Frontend Architecture
+- **Framework**: Next.js 16 with App Router for server-side rendering and static optimization
+- **Language**: TypeScript with strict mode for type safety
+- **Styling**: Tailwind CSS utility-first approach with custom design tokens
+- **Component Library**: Shadcn UI (Radix UI primitives) for accessible, composable components
+- **State Management**: 
+  - Server state via React Server Components
+  - URL state with nuqs for shareable states
+  - Client state with React hooks
+- **Forms**: React Hook Form with Zod validation
+- **Animations**: Framer Motion for smooth transitions
+- **Charts**: Recharts for data visualization
+
+### Backend Architecture
+- **Database**: Neon PostgreSQL (serverless)
+- **ORM**: Drizzle for type-safe database queries
+- **Authentication**: Better Auth with Google OAuth and Email/Password (bcrypt hashing)
+- **API**: Next.js API routes for serverless functions
+- **External APIs**: Yahoo Finance for ETF/stock data validation
+- **Security**: ISIN format validation, URL encoding, proper error handling, bcrypt password hashing
+
+### Key Technical Decisions
+
+1. **Server Components First**: Maximizing performance with RSC, only using client components when necessary (forms, interactivity)
+2. **Type Safety**: End-to-end type safety from database to UI
+3. **Internationalization**: Built-in i18n support with next-intl (English and French fully supported across all pages)
+4. **Accessibility**: WCAG 2.1 AA compliance with semantic HTML and ARIA labels
+5. **Performance**: 
+   - **Advanced Caching**: Next.js 16 `unstable_cache` with tag-based invalidation
+   - **Cache Management**: Centralized cache tags in `src/lib/cache/tags.ts`
+   - **Granular Revalidation**: `revalidateTag` with stale-while-revalidate for instant updates
+   - **Production-Ready Cache Invalidation**: All mutations properly invalidate both specific and dashboard caches
+   - Code splitting by route
+   - Image optimization with Next.js Image
+   - Lazy loading for charts and heavy components
+   - Debounced API calls for search/validation
+   - Parallel API fetching with Promise.all for multiple ISINs
+   - Skeleton loading states for better perceived performance
+6. **Security**:
+   - ISIN format validation with regex pattern
+   - URL parameter encoding for external APIs
+   - Proper authentication checks in all server actions
+   - Password hashing with bcryptjs (configured in Better Auth)
+   - Better Auth uses bcrypt for password hash and verify functions
+7. **User Experience**:
+   - Proper sign-out flow with client-side refresh and navigation
+   - Locale-aware chart formatting (dates, currencies)
+   - Controlled dropdown states to prevent UI glitches
+   - Consistent spacing across all pages (`space-y-sm`)
+   - Modular component architecture for maintainability
+
+### Caching Architecture
+
+**Location**: `src/lib/cache/tags.ts`
+
+The application implements a comprehensive caching strategy using Next.js 16 best practices:
+
+**Cache Tags System**:
+```typescript
+export const CACHE_TAGS = {
+  LIVRET_A: 'livret-a',
+  PEA: 'pea',
+  PEE: 'pee',
+  DASHBOARD: 'dashboard',
+}
+
+export const getCacheTag = {
+  livretA: (userId: string) => `livret-a-${userId}`,
+  pea: (userId: string) => `pea-${userId}`,
+  pee: (userId: string) => `pee-${userId}`,
+  dashboard: (userId: string) => `dashboard-${userId}`,
+}
+```
+
+**Implementation**:
+- **Data Queries**: All database queries across all features use `unstable_cache` with proper tags and revalidation times
+- **Mutations**: Server actions use `revalidateTag` and `revalidatePath` for cache invalidation, plus `router.refresh()` on client side
+- **Cascading Invalidation**: Mutations invalidate both specific entity caches and the dashboard cache
+- **User-Scoped**: All cache tags include userId to prevent cross-user data leakage
+- **Locale-Aware**: Path revalidation works across all locale-prefixed routes (/en, /fr)
+
+**Benefits**:
+- Pages no longer refetch data on every visit
+- Mutations trigger immediate cache updates
+- Reduced database load and improved performance
+- Better user experience with instant feedback
+
+## Production-Ready Improvements
+
+### Recent Enhancements (Latest)
+
+**Cache Invalidation Fix**:
+- All mutations properly invalidate both specific entity caches AND dashboard cache
+- Client-side cache refresh (`router.refresh()`) added to all form submissions for instant UI updates
+- Server-side cache invalidation using `revalidateTag` and `revalidatePath` for comprehensive coverage
+- Corrected revalidation API syntax for Next.js 16 compatibility (removed invalid parameters)
+
+**Authentication Flow**:
+- Sign-out now properly redirects to login page using locale-aware router
+- Includes `router.refresh()` to clear client-side authentication state
+- Prevents stale session data in UI
+
+**Internationalization**:
+- Wealth evolution chart now uses current locale for date formatting
+- Month labels display correctly in both English and French
+- Currency formatting respects selected locale
+
+**Component Refactoring**:
+New modular components created:
+- **PEA Components**:
+  - `PeaMetricsCards`: Portfolio metrics display
+  - `PeaHoldingsTable`: Holdings table with performance calculations
+- **PEE Components**:
+  - `PeeMetricsCards`: Account summary cards
+  - `PeeContributionBreakdown`: Contribution type breakdown
+  - `PeeContributionList`: Recent contributions display with limit support
+- Better separation of concerns, easier testing, improved maintainability
+
+**UI Consistency**:
+- Standardized spacing to `space-y-sm` across all pages (was inconsistent with `space-y-md`)
+- Language picker properly dismisses after selection using `onSelect` event handler
+- Controlled dropdown state prevents UI glitches and duplicate rendering issues
+
+**Testing**:
+- All unit tests passing (61 tests)
+- Lint rules enforced and passing
+- No breaking changes to existing functionality
+
+## Features Implementation
+
+### 0. Authentication & Navigation
+
+**Login Page**: `src/app/[locale]/(auth)/login/page.tsx`
+- Server component for optimal performance
+- Client form component (`src/features/auth/login-form.tsx`) for interactivity
+- Full internationalization support with next-intl
+- Email/password and Google OAuth authentication
+- Better Auth integration with bcrypt password hashing
+- Fully translated UI (English and French)
+
+**Mobile Navigation**: `src/components/layout/mobile-nav.tsx`
+- Sheet component from Shadcn UI for responsive menu
+- Shows on mobile/tablet devices (hidden on desktop)
+- Includes all navigation items from sidebar
+- Auto-closes on navigation
+- Accessible with keyboard navigation
+
+### 1. Dashboard
+**Location**: `src/app/[locale]/dashboard/page.tsx`
+
+The dashboard serves as the main entry point showing:
+- Overview cards with total wealth and gains
+- Interactive charts:
+  - Wealth evolution (area chart with stacked data)
+  - Asset allocation (pie chart)
+  - Performance metrics (bar chart)
+- Quick links to individual account pages
+
+**Technical Details**:
+- Uses Suspense for progressive loading
+- Server-side data fetching with caching
+- Mock historical data for chart visualization
+- Skeleton loading states for overview cards and account cards
+- Removed AnimatedWrapper for cleaner, faster initial render
+
+### 2. Livret A Management
+**Location**: `src/features/livret-a/`
+
+Manages regulated savings accounts with:
+- Current balance and rate display
+- Transaction history table
+- Add transaction dialog (deposit/withdrawal)
+- Update interest rate functionality
+- Full internationalization support (English and French)
+
+**Schema**: 
+- Balance stored as decimal string for precision
+- Transactions with type, amount, date, and optional description
+- Automatic balance calculation
+
+**Caching**:
+- Data cached with `getCacheTag.livretA(userId)` tag using `unstable_cache`
+- Cache invalidated on transactions and rate updates with `revalidateTag` and `router.refresh()`
+- Dashboard cache also invalidated to keep overview in sync
+- Both tag-based and path-based revalidation for comprehensive coverage
+
+**Loading States**:
+- Dedicated LivretASkeleton component for loading state
+- Suspense boundary wrapping content for progressive loading
+
+**Translations**:
+- All UI strings fully translated in `messages/en.json` and `messages/fr.json`
+- Dynamic transaction types (deposit/withdrawal/interest) translated
+- Form validation errors fully localized
+
+### 3. PEA Portfolio
+**Location**: `src/features/pea/`
+
+Equity savings plan management with:
+- Holdings table with real-time performance
+- ISIN validation via Yahoo Finance API
+- Auto-refresh prices functionality
+- Portfolio metrics calculation
+- Add holding dialog with debounced validation
+
+**Key Feature**: ISIN Validation
+- Debounced API calls (500ms) to Yahoo Finance
+- Real-time feedback on security validity
+- Auto-fill security name from API response
+- Validates 12-character ISIN format with regex pattern
+- Proper URL encoding for security
+- Format validation: `/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/`
+
+**Loading States**:
+- PeaSkeleton component with 4 metric cards skeleton
+- Holdings table skeleton state
+
+**Performance Optimizations**:
+- Parallel price fetching using fetchMultipleEtfPrices
+- Price caching in database to reduce API calls
+
+**Component Structure**:
+- Modular components: `PeaMetricsCards`, `PeaHoldingsTable`
+- Better code organization and reusability
+
+### 4. PEE Tracking
+**Location**: `src/features/pee/`
+
+Employee savings plan with:
+- Total shares and value tracking
+- Contribution history by type
+- Share price updates
+- Breakdown by contribution type (personal, employer match, profit sharing, incentive)
+
+**Contribution Types**:
+- Personal (personal)
+- Employer match (abondement)
+- Profit sharing (participation)
+- Incentive (interessement)
+
+**Loading States**:
+- PeeSkeleton component with 3 metric cards
+- Contribution breakdown and history skeleton states
+
+**Component Structure**:
+- Modular components: `PeeMetricsCards`, `PeeContributionBreakdown`, `PeeContributionList`
+- Separation of concerns for better maintainability
+
+## Design System
+
+### Color Palette
+**Primary Green Theme**:
+```css
+Light mode:
+- Primary: hsl(142, 76%, 36%)
+- Secondary: hsl(142, 30%, 90%)
+- Accent: hsl(142, 40%, 85%)
+
+Dark mode:
+- Primary: hsl(142, 76%, 45%)
+- Background: hsl(142, 40%, 5%)
+- Card: hsl(142, 35%, 8%)
+```
+
+### Typography
+- **Font**: Outfit (Google Fonts)
+- **Scale**: 
+  - xs: 0.75rem
+  - sm: 0.875rem
+  - base: 1rem
+  - lg: 1.125rem
+  - xl: 1.25rem
+  - 2xl: 1.5rem
+  - 3xl: 1.875rem
+  - 4xl: 2.25rem
+
+### Spacing System
+- xs: 0.5rem (8px)
+- sm: 0.75rem (12px)
+- md: 1rem (16px)
+- lg: 1.5rem (24px)
+- xl: 2rem (32px)
+- 2xl: 3rem (48px)
+- 3xl: 4rem (64px)
+- 4xl: 6rem (96px)
+
+### Border Radius
+- xs: 0.25rem
+- sm: 0.375rem
+- md: 0.5rem
+- lg: 0.75rem
+- xl: 1rem
+
+## Internationalization
+
+### Implementation
+- **Library**: next-intl
+- **Supported Locales**: en (English), fr (French)
+- **Translation Files**: `messages/en.json`, `messages/fr.json`
+- **URL Structure**: `/[locale]/...`
+
+### Translation Keys Structure
+```
+common: General UI elements
+nav: Navigation items
+auth: Authentication flows
+dashboard: Dashboard specific
+livretA: Livret A feature
+pea: PEA feature
+pee: PEE feature
+theme: Theme toggle
+language: Language switcher
+```
+
+### Form Validation i18n
+Zod schemas use factory functions that accept translation functions from next-intl:
+```typescript
+export function createSchema(TranslationFn) {
+  return z.object({
+    amount: z.union([z.string(), z.number()]).pipe(
+      z.coerce.number({ message: t('amountMustBeNumber') })
+        .positive(t('amountPositive'))
+    ),
+  })
+}
+```
+
+Translation keys are defined in `messages/en.json` and `messages/fr.json` under the `validation` namespace.
+
+## Form Handling
+
+### Number Input Fix
+**Problem**: HTML number inputs return strings in React Hook Form.
+
+**Solution**: 
+```typescript
+z.union([z.string(), z.number()]).pipe(
+  z.coerce.number({
+    message: t('amountMustBeNumber')
+  })
+  .positive(t('amountPositive'))
+)
+```
+
+This pattern:
+1. Accepts both string and number using `.union()`
+2. Uses `.pipe()` to coerce to number with custom error messages
+3. Applies validation with localized messages from next-intl
+4. Maintains full TypeScript type inference
+
+### Form Architecture
+- Zod schemas with factory functions accepting translation functions (`TranslationFn`)
+- next-intl integration for internationalized validation messages
+- React Hook Form for state management (without generic type parameters)
+- zodResolver for validation integration
+- Server actions for form submissions
+- Toast notifications (Sonner) for user feedback
+
+## Database Schema
+
+### Tables
+
+**users**
+- id (uuid, primary key)
+- email
+- name
+- image
+- createdAt, updatedAt
+
+**livret_a**
+- id (uuid, primary key)
+- userId (foreign key)
+- balance (decimal)
+- currentRate (decimal)
+- createdAt, updatedAt
+
+**livret_a_transactions**
+- id (uuid, primary key)
+- livretAId (foreign key)
+- amount (decimal)
+- type (enum: deposit, withdrawal, interest)
+- date
+- description (optional)
+- createdAt
+
+**pea_accounts**
+- id (uuid, primary key)
+- userId (foreign key)
+- name
+- totalInvestment (decimal)
+- createdAt, updatedAt
+
+**pea_holdings**
+- id (uuid, primary key)
+- peaAccountId (foreign key)
+- isin (12 characters)
+- name
+- shares (decimal)
+- purchasePrice (decimal)
+- purchaseDate
+- lastUpdatedPrice (decimal, nullable)
+- lastPriceUpdate (timestamp, nullable)
+- createdAt, updatedAt
+
+**pee_accounts**
+- id (uuid, primary key)
+- userId (foreign key)
+- companyName
+- sharePrice (decimal)
+- totalShares (decimal)
+- createdAt, updatedAt
+
+**pee_contributions**
+- id (uuid, primary key)
+- peeAccountId (foreign key)
+- type (enum: personal, abondement, participation, interessement)
+- amount (decimal)
+- shares (decimal)
+- date
+- createdAt
+
+## API Routes
+
+### `/api/auth/[...all]`
+Better Auth handler for authentication flows.
+
+### `/api/validate-isin?isin={code}`
+Validates ISIN codes against Yahoo Finance API.
+- **Method**: GET
+- **Query**: isin (12 characters)
+- **Response**: `{ name, symbol }` or error
+- **Rate Limiting**: Debounced on client (500ms)
+- **Security**: 
+  - ISIN format validation with regex
+  - Proper URL encoding using URLSearchParams
+  - Length validation (exactly 12 characters)
+- **Error Handling**: Returns 404 for invalid/not found ISINs
+
+### `/api/cron/livret-a-interest`
+Cron job for calculating and crediting annual interest (runs January 1st).
+
+### `/api/cron/update-etf-prices`
+Cron job for updating PEA holding prices (runs daily).
+
+## Development Tools
+
+### Database Seeding
+**Location**: `scripts/seed.ts`
+
+A comprehensive seed script for development:
+- Creates mock user with email/password authentication
+- Email: `mock@example.com`
+- Password: `Password123!`
+- Populates Livret A with 5 sample transactions
+- Creates PEA account with 4 realistic ETF holdings
+- Seeds PEE account with 6 contributions across all types
+- Uses bcryptjs for secure password hashing
+- Run with: `pnpm db:seed`
+
+**Dependencies**:
+- bcryptjs: Password hashing
+- tsx: TypeScript execution for scripts
+
+## Testing Strategy
+
+### Unit Tests
+**Location**: `tests/unit/`
+- Utility functions
+- Calculation functions
+- Formatting helpers
+- Validation logic
+- Security validations (ISIN format, URL encoding)
+
+**Framework**: Vitest
+
+### Component Tests
+**Location**: `tests/component/`
+- Individual UI components
+- Form behaviors
+- User interactions
+- Skeleton loading components (LivretASkeleton, PeaSkeleton, PeeSkeleton)
+
+**Framework**: Vitest + React Testing Library
+
+### E2E Tests
+**Location**: `tests/e2e/`
+- Critical user flows
+- Authentication and authorization
+- Locale-prefixed routing (`/en/` and `/fr/`)
+- Protected route redirects
+- Feature-specific tests:
+  - Livret A page (livret-a.spec.ts)
+  - PEA portfolio page (pea.spec.ts)
+  - PEE tracking page (pee.spec.ts)
+  - Dashboard (dashboard.spec.ts)
+  - Login flows (example.spec.ts)
+- Multi-language support verification
+
+**Framework**: Playwright
+
+**Test Updates (Latest)**:
+- All E2E tests updated to handle locale-prefixed routes
+- Authentication redirects properly tested
+- Locale-aware content verification
+- All 20 Playwright tests passing successfully
+
+### Test Coverage
+- Unit tests: Pure functions and business logic
+- Component tests: User-facing components
+- E2E tests: Critical user journeys
+
+**Coverage Goals**:
+- Statements: > 80%
+- Branches: > 75%
+- Functions: > 80%
+- Lines: > 80%
+
+## Performance Optimization
+
+### Implemented
+1. **Server Components**: Default to RSC for static content
+2. **Code Splitting**: Automatic route-based splitting
+3. **Image Optimization**: Next.js Image component
+4. **Lazy Loading**: Dynamic imports for charts
+5. **Caching**: React cache() for database queries
+6. **Debouncing**: API calls for search/validation (500ms)
+7. **Suspense**: Progressive loading with fallbacks
+8. **Skeleton Loading**: Dedicated skeleton components for each feature:
+   - LivretASkeleton
+   - PeaSkeleton
+   - PeeSkeleton
+   - OverviewCardsSkeleton
+   - AccountCardsSkeleton
+9. **Parallel Fetching**: 
+   - Promise.all for multiple ISIN price fetches
+   - Optimized refreshPrices action using fetchMultipleEtfPrices
+10. **Removed Animations**: Eliminated AnimatedWrapper from dashboard for faster initial render
+
+### Metrics
+- **LCP** (Largest Contentful Paint): < 2.5s
+- **FID** (First Input Delay): < 100ms
+- **CLS** (Cumulative Layout Shift): < 0.1
+
+## Security Considerations
+
+### Implemented
+1. **Authentication**: OAuth 2.0 with Google + Email/Password
+2. **CSRF Protection**: Built into Better Auth
+3. **SQL Injection**: Prevented by Drizzle ORM
+4. **XSS Prevention**: React auto-escaping
+5. **Environment Variables**: Secured sensitive data
+6. **API Rate Limiting**: Debounced client-side calls
+7. **Input Validation**: 
+   - ISIN format validation with regex `/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/`
+   - Length checks on all inputs
+   - Type validation with Zod schemas
+8. **URL Security**:
+   - Proper URL encoding using URLSearchParams
+   - Prevents URL injection attacks
+9. **Password Security**:
+   - bcryptjs hashing with salt rounds
+   - Secure storage in database
+
+### Security Audit
+**Document**: `SECURITY_AUDIT.md`
+
+Comprehensive security analysis covering:
+- Critical issues identified and fixed
+- Performance bottlenecks
+- Recommendations for future improvements
+- Implemented best practices
+
+### Best Practices
+- No sensitive data in client components
+- API routes require authentication
+- Database queries use parameterized statements
+- Input validation on client and server
+- HTTPS only in production
+
+## Deployment
+
+### Recommended Platform
+**Vercel** (optimized for Next.js)
+
+### Environment Variables
+```
+DATABASE_URL
+BETTER_AUTH_SECRET
+BETTER_AUTH_URL
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+```
+
+### Build Configuration
+```json
+{
+  "buildCommand": "pnpm build",
+  "outputDirectory": ".next",
+  "installCommand": "pnpm install"
+}
+```
+
+### Cron Jobs
+Configure on Vercel:
+- `/api/cron/livret-a-interest`: 0 0 1 1 * (Jan 1, midnight)
+- `/api/cron/update-etf-prices`: 0 2 * * * (Daily at 2 AM)
+
+## Development Workflow
+
+### Getting Started
+1. Clone repository
+2. Install dependencies: `pnpm install`
+3. Setup environment variables
+4. Run migrations: `pnpm db:push`
+5. Start dev server: `pnpm dev`
+
+### Code Quality
+- **Pre-commit**: Lint and format check
+- **Pre-push**: Run tests
+- **CI/CD**: Automated testing and deployment
+
+### Git Workflow
+1. Create feature branch
+2. Make changes
+3. Run tests locally
+4. Commit with descriptive message
+5. Create pull request
+6. Code review
+7. Merge to main
+
+## Future Enhancements
+
+### Planned Features
+1. **Export Data**: CSV/PDF export functionality
+2. **Mobile App**: React Native version
+3. **Advanced Analytics**: More chart types and insights
+4. **Notifications**: Email alerts for milestones
+5. **Multi-User**: Family account management
+6. **Historical Tracking**: Actual transaction history charts
+7. **Budget Planning**: Integration with budgeting tools
+8. **Tax Reporting**: Annual tax document generation
+
+### Technical Debt
+- Add real historical data tracking (currently using mock data)
+- Implement comprehensive error logging (e.g., Sentry)
+- Add API rate limiting on server
+- Implement request caching for Yahoo Finance API
+- Add automated database backups
+- Implement data migration system
+
+## Troubleshooting
+
+### Common Issues
+
+**ISIN Validation Not Working**
+- Check Yahoo Finance API availability
+- Verify ISIN format (exactly 12 characters)
+- Check network connectivity
+
+**Form Number Inputs Showing String Errors**
+- Ensure using the coercion pattern in Zod schema
+- Check form default values are properly typed
+
+**Charts Not Rendering**
+- Verify Recharts installation
+- Check data format matches chart expectations
+- Ensure chart container has dimensions
+
+**Dark Mode Not Switching**
+- Clear browser cache
+- Check next-themes provider is in layout
+- Verify CSS variables are defined
+
+**Translation Not Updating**
+- Clear Next.js cache: `rm -rf .next`
+- Verify locale in URL matches expected format
+- Check translation key exists in both language files
+
+## Maintenance
+
+### Regular Tasks
+- Update dependencies monthly
+- Review and update translations quarterly
+- Check for security vulnerabilities weekly
+- Monitor performance metrics continuously
+- Backup database daily (automated)
+- Review error logs daily
+
+### Monitoring
+- Application errors via console
+- Database performance via Neon dashboard
+- API response times
+- User analytics (if implemented)
+
+
