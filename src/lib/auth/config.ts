@@ -33,4 +33,14 @@ export const auth = betterAuth({
 	},
 	secret: process.env.BETTER_AUTH_SECRET!,
 	baseURL: process.env.BETTER_AUTH_URL!,
+	advanced: {
+		useSecureCookies: process.env.NODE_ENV === 'production',
+		cookiePrefix: 'better-auth',
+	},
+	trustedOrigins: [
+		process.env.BETTER_AUTH_URL!,
+		process.env.NODE_ENV === 'production'
+			? 'https://coinjar-delta.vercel.app'
+			: 'http://localhost:3000',
+	],
 })
