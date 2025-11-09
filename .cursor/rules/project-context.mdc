@@ -109,6 +109,24 @@ export const getCacheTag = {
 
 ### Recent Enhancements (Latest)
 
+**Authentication & User Registration** (Latest):
+- Complete signup flow implemented with Better Auth `signUp.email`
+- Signup page created at `src/app/[locale]/(auth)/signup/page.tsx`
+- Signup form component with name, email, and password fields
+- Language picker added to both login and signup pages
+- Full internationalization support for signup flow
+- Automatic sign-in after successful registration
+- Toast notifications for user feedback
+- All auth pages now support locale selection before authentication
+
+**CI/CD & Development Workflow**:
+- GitHub Actions pipeline created for automated testing and deployment
+- Husky + lint-staged integration for pre-commit code quality checks
+- ESLint, Prettier, and unit tests run automatically on staged files
+- CI pipeline runs linting, unit tests, and E2E tests (all continue on error)
+- Automatic deployment to Vercel on main branch pushes
+- Playwright test reports uploaded as artifacts
+
 **Cache Invalidation Fix**:
 - All mutations properly invalidate both specific entity caches AND dashboard cache
 - Client-side cache refresh (`router.refresh()`) added to all form submissions for instant UI updates
@@ -157,6 +175,26 @@ New modular components created:
 - Email/password and Google OAuth authentication
 - Better Auth integration with bcrypt password hashing
 - Fully translated UI (English and French)
+- Language picker in top-right corner for locale selection
+
+**Signup Page**: `src/app/[locale]/(auth)/signup/page.tsx`
+- Complete user registration flow
+- Client form component (`src/features/auth/signup-form.tsx`) for interactivity
+- Better Auth `signUp.email` method for account creation
+- Fields: name, email, password (minimum 8 characters)
+- Google OAuth option for quick registration
+- Automatic sign-in after successful registration
+- Redirects to dashboard after signup
+- Language picker available for locale selection
+- Fully internationalized with next-intl
+- Toast notifications for success/error feedback
+
+**Language Picker**: Available on login and signup pages
+- Positioned in top-right corner using absolute positioning
+- Allows users to select language before authentication
+- Supports English (en) and French (fr)
+- Properly dismisses after selection using `onSelect` event
+- Uses controlled dropdown state to prevent UI glitches
 
 **Mobile Navigation**: `src/components/layout/mobile-nav.tsx`
 - Sheet component from Shadcn UI for responsive menu
@@ -643,18 +681,46 @@ Configure on Vercel:
 5. Start dev server: `pnpm dev`
 
 ### Code Quality
-- **Pre-commit**: Lint and format check
-- **Pre-push**: Run tests
-- **CI/CD**: Automated testing and deployment
+
+**Husky + lint-staged**: Automated pre-commit checks
+- **Location**: `.husky/pre-commit` and `.lintstagedrc`
+- **Pre-commit hook**: Runs `lint-staged` on staged files
+- **Staged file checks**:
+  - ESLint with auto-fix on `.{js,jsx,ts,tsx}` files
+  - Prettier formatting on all supported files
+  - Unit tests run with `--passWithNoTests` flag
+- **Benefits**: Ensures code quality before commits reach the repository
+- **Manual trigger**: Run `pnpm precommit` to execute the pre-commit checks
+
+**GitHub Actions CI/CD Pipeline**: `.github/workflows/ci-cd.yml`
+- **Triggers**: 
+  - Push to `main` or `develop` branches
+  - Pull requests targeting `main`
+- **Jobs**:
+  1. **Lint**: Runs ESLint (`continue-on-error: true`)
+  2. **Unit Tests**: Vitest tests (`continue-on-error: true`)
+  3. **E2E Tests**: Playwright tests with artifact upload (`continue-on-error: true`)
+  4. **Deploy**: Automatic deployment to Vercel on `main` branch
+- **Configuration**:
+  - Node.js 20 with pnpm 9
+  - Playwright browsers installed with dependencies
+  - Test reports uploaded as artifacts (30-day retention)
+  - All test jobs continue on error to prevent blocking deployment
+- **Required GitHub Secrets**:
+  - `VERCEL_TOKEN`: Vercel authentication token
+  - `VERCEL_ORG_ID`: Organization ID (optional)
+  - `VERCEL_PROJECT_ID`: Project ID (optional)
 
 ### Git Workflow
 1. Create feature branch
 2. Make changes
-3. Run tests locally
+3. Pre-commit hook automatically runs (lint + format + tests)
 4. Commit with descriptive message
-5. Create pull request
-6. Code review
-7. Merge to main
+5. Push to remote (triggers CI pipeline)
+6. Create pull request
+7. GitHub Actions runs full test suite
+8. Code review
+9. Merge to main (triggers deployment)
 
 ## Future Enhancements
 

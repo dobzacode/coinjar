@@ -8,41 +8,50 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/components/ui/card'
+import {
+	Form,
+	FormControl,
+	FormField,
+	FormItem,
+	FormLabel,
+	FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Link } from '@/i18n/routing'
 import { signIn } from '@/lib/auth/client'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Wallet } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
+import { createLoginSchema, type LoginInput } from '../schema'
 
 export function LoginForm() {
 	const t = useTranslations('auth')
-	const [email, setEmail] = useState('')
-	const [password, setPassword] = useState('')
-	const [isLoading, setIsLoading] = useState(false)
-	const [error, setError] = useState('')
+	const tValidation = useTranslations('validation')
+
+	const form = useForm<LoginInput>({
+		resolver: zodResolver(createLoginSchema(tValidation)),
+		defaultValues: {
+			email: '',
+			password: '',
+		},
+	})
 
 	async function handleGoogleSignIn() {
 		await signIn.social({ provider: 'google', callbackURL: '/dashboard' })
 	}
 
-	async function handleEmailPasswordSignIn(e: React.FormEvent) {
-		e.preventDefault()
-		setIsLoading(true)
-		setError('')
-
+	async function onSubmit(data: LoginInput) {
 		try {
 			await signIn.email({
-				email,
-				password,
+				email: data.email,
+				password: data.password,
 				callbackURL: '/dashboard',
 			})
 		} catch (err) {
 			console.error(err)
-			setError(t('invalidCredentials'))
-		} finally {
-			setIsLoading(false)
+			toast.error(t('invalidCredentials'))
 		}
 	}
 
@@ -58,41 +67,52 @@ export function LoginForm() {
 				</div>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				<form onSubmit={handleEmailPasswordSignIn} className="space-y-4">
-					<div className="space-y-2">
-						<Label htmlFor="email">{t('email')}</Label>
-						<Input
-							id="email"
-							type="email"
-							placeholder={t('emailPlaceholder')}
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-							required
-							disabled={isLoading}
+				<Form {...form}>
+					<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+						<FormField
+							control={form.control}
+							name="email"
+							render={({ field }) => (
+								<FormItem>
+									<FormLabel>{t('email')}</FormLabel>
+									<FormControl>
+										<Input
+											type="email"
+											placeholder={t('emailPlaceholder')}
+											{...field}
+										/>
+									</FormControl>
+									<FormMessage />
+								</FormItem>
+							)}
 						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="password">{t('password')}</Label>
-						<Input
-							id="password"
-							type="password"
-							placeholder={t('passwordPlaceholder')}
-							value={password}
-							onChange={(e) => setPassword(e.target.value)}
-							required
-							disabled={isLoading}
+						<FormField
+							control={form.control}
+							name="password"
+							render={({ field }) => (
+								<FormItem>
+									<FormLabel>{t('password')}</FormLabel>
+									<FormControl>
+										<Input
+											type="password"
+											placeholder={t('passwordPlaceholder')}
+											{...field}
+										/>
+									</FormControl>
+									<FormMessage />
+								</FormItem>
+							)}
 						/>
-					</div>
-					{error && <p className="text-sm text-red-500">{error}</p>}
-					<Button
-						type="submit"
-						className="w-full"
-						size="lg"
-						disabled={isLoading}
-					>
-						{isLoading ? t('signingIn') : t('signIn')}
-					</Button>
-				</form>
+						<Button
+							type="submit"
+							className="w-full"
+							size="lg"
+							disabled={form.formState.isSubmitting}
+						>
+							{form.formState.isSubmitting ? t('signingIn') : t('signIn')}
+						</Button>
+					</form>
+				</Form>
 
 				<div className="relative">
 					<div className="absolute inset-0 flex items-center">

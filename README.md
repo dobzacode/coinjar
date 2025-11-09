@@ -38,6 +38,8 @@ A modern, full-stack web application for tracking and managing your French savin
 - **Server Actions**: Forms use server actions for secure, server-side data mutations with cache invalidation
 - **Server Components**: Optimized with React Server Components for better performance
 - **Authentication**: Google OAuth + Email/Password via Better Auth with bcrypt password hashing
+- **Signup Flow**: Complete registration flow with validation and internationalization
+- **Language Picker**: Language selection available on login and signup pages
 - **Proper Sign Out**: Authentication state properly cleared with client-side refresh and navigation
 - **Database**: Neon PostgreSQL with Drizzle ORM
 - **Charts**: Recharts integration with locale-aware date and currency formatting
@@ -45,8 +47,10 @@ A modern, full-stack web application for tracking and managing your French savin
 - **Optimistic Updates**: Fast UI with progressive enhancement and proper cache management
 - **Parallel Data Fetching**: Optimized API calls with Promise.all for better performance
 - **Security Hardening**: ISIN format validation, URL encoding, proper error handling
-- **Full i18n Coverage**: Complete translations for all pages (dashboard, livret-a, pea, pee, login) in English and French
+- **Full i18n Coverage**: Complete translations for all pages (dashboard, livret-a, pea, pee, login, signup) in English and French
 - **Modular Components**: Feature components broken down for better separation of concerns and maintainability
+- **CI/CD Pipeline**: GitHub Actions workflow for automated testing, linting, and deployment to Vercel
+- **Git Hooks**: Husky pre-commit hooks with lint-staged for automated code quality checks
 
 ## 🛠️ Tech Stack
 
@@ -74,8 +78,10 @@ A modern, full-stack web application for tracking and managing your French savin
 
 - **Linting**: ESLint + Prettier
 - **Testing**: Vitest + Playwright + React Testing Library
-- **Git Hooks**: Husky
+- **Git Hooks**: Husky + lint-staged
+- **CI/CD**: GitHub Actions
 - **Package Manager**: pnpm
+- **Deployment**: Vercel
 
 ## 📦 Installation
 
@@ -140,6 +146,7 @@ pnpm lint             # Run ESLint
 pnpm lint:fix         # Fix linting issues
 pnpm format           # Format with Prettier
 pnpm format:check     # Check formatting
+pnpm precommit        # Run linting and tests (pre-commit hook)
 
 # Testing
 pnpm test             # Run unit tests
@@ -420,6 +427,54 @@ The application implements several security best practices:
 
 See `SECURITY_AUDIT.md` for detailed security analysis and recommendations.
 
+## 🚀 CI/CD Pipeline
+
+The project includes a comprehensive CI/CD pipeline using GitHub Actions that automatically runs on every push and pull request:
+
+### Pipeline Stages
+
+1. **Linting**: Runs ESLint to check code quality (continues on error)
+2. **Unit Tests**: Executes Vitest unit tests (continues on error)
+3. **E2E Tests**: Runs Playwright end-to-end tests (continues on error)
+4. **Deployment**: Deploys to Vercel on successful main branch pushes
+
+### GitHub Actions Workflow
+
+The workflow is configured to:
+
+- Run on `main` and `develop` branch pushes
+- Run on pull requests targeting `main`
+- Use `continue-on-error: true` for test stages to prevent blocking deployment
+- Upload Playwright test reports as artifacts (retained for 30 days)
+- Automatically deploy to Vercel production on main branch
+
+### Required Secrets
+
+To enable deployment, add these secrets to your GitHub repository:
+
+- `VERCEL_TOKEN`: Your Vercel authentication token
+- `VERCEL_ORG_ID`: Your Vercel organization ID (optional)
+- `VERCEL_PROJECT_ID`: Your Vercel project ID (optional)
+
+### Pre-commit Hooks
+
+The project uses Husky and lint-staged to enforce code quality:
+
+- **Husky**: Git hooks manager
+- **lint-staged**: Runs linters on staged files only
+- **Pre-commit hook**: Automatically runs ESLint, Prettier, and tests on staged files
+
+When you commit:
+
+1. ESLint fixes linting issues automatically
+2. Prettier formats code
+3. Unit tests run (if test files are staged)
+4. Commit proceeds if all checks pass
+
+### Manual Workflow Trigger
+
+You can manually trigger the workflow from the GitHub Actions tab.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please follow the code style guidelines:
@@ -428,6 +483,7 @@ Contributions are welcome! Please follow the code style guidelines:
 - Follow the project's ESLint and Prettier configs
 - Write tests for new features
 - Update documentation as needed
+- Pre-commit hooks will automatically check your code before committing
 
 ## 📄 License
 
