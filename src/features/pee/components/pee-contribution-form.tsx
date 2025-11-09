@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/select'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus } from 'lucide-react'
-import { useLocale, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -39,8 +39,6 @@ import {
 
 export function PeeContributionForm() {
 	const [open, setOpen] = useState(false)
-	const [isLoading, setIsLoading] = useState(false)
-	const locale = useLocale()
 	const t = useTranslations('pee')
 	const tCommon = useTranslations('common')
 	const tValidation = useTranslations('validation')
@@ -56,25 +54,14 @@ export function PeeContributionForm() {
 	})
 
 	async function onSubmit(data: PeeContributionInput) {
-		setIsLoading(true)
 		try {
 			await addContribution(data)
-			toast.success(
-				locale === 'fr'
-					? 'Contribution ajoutée avec succès'
-					: 'Contribution added successfully'
-			)
+			toast.success(t('contributionAddedSuccess'))
 			setOpen(false)
 			form.reset()
 		} catch (error) {
 			console.error(error)
-			toast.error(
-				locale === 'fr'
-					? "Erreur lors de l'ajout de la contribution"
-					: 'Error adding contribution'
-			)
-		} finally {
-			setIsLoading(false)
+			toast.error(t('errorAddingContribution'))
 		}
 	}
 
@@ -98,11 +85,7 @@ export function PeeContributionForm() {
 							name="type"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>
-										{locale === 'fr'
-											? 'Type de contribution'
-											: 'Contribution type'}
-									</FormLabel>
+									<FormLabel>{t('contributionType')}</FormLabel>
 									<Select
 										onValueChange={field.onChange}
 										defaultValue={field.value}
@@ -114,18 +97,16 @@ export function PeeContributionForm() {
 										</FormControl>
 										<SelectContent>
 											<SelectItem value="personal">
-												{locale === 'fr'
-													? 'Versement personnel'
-													: 'Personal contribution'}
+												{t('personalContribution')}
 											</SelectItem>
 											<SelectItem value="abondement">
-												{locale === 'fr' ? 'Abondement' : 'Employer match'}
+												{t('abondement')}
 											</SelectItem>
 											<SelectItem value="participation">
-												{locale === 'fr' ? 'Participation' : 'Profit sharing'}
+												{t('participation')}
 											</SelectItem>
 											<SelectItem value="interessement">
-												{locale === 'fr' ? 'Intéressement' : 'Incentive'}
+												{t('interessement')}
 											</SelectItem>
 										</SelectContent>
 									</Select>
@@ -156,9 +137,7 @@ export function PeeContributionForm() {
 							name="shares"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>
-										{locale === 'fr' ? "Nombre d'actions" : 'Number of shares'}
-									</FormLabel>
+									<FormLabel>{t('numberOfShares')}</FormLabel>
 									<FormControl>
 										<Input
 											type="number"
@@ -192,8 +171,10 @@ export function PeeContributionForm() {
 							>
 								{tCommon('cancel')}
 							</Button>
-							<Button type="submit" disabled={isLoading}>
-								{isLoading ? tCommon('loading') : tCommon('save')}
+							<Button type="submit" disabled={form.formState.isSubmitting}>
+								{form.formState.isSubmitting
+									? tCommon('loading')
+									: tCommon('save')}
 							</Button>
 						</div>
 					</form>

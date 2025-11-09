@@ -19,20 +19,26 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQuery } from '@tanstack/react-query'
 import { Loader2, Plus } from 'lucide-react'
-import { useLocale, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { addHolding } from '../actions'
 import { createPeaHoldingSchema, type PeaHoldingInput } from '../schema'
 
+async function validateIsin(isin: string) {
+	const response = await fetch(`/api/validate-isin?isin=${isin}`)
+	if (!response.ok) {
+		throw new Error('Invalid ISIN')
+	}
+	return response.json()
+}
+
 export function PeaHoldingForm() {
 	const [open, setOpen] = useState(false)
-	const [isLoading, setIsLoading] = useState(false)
-	const [isValidatingIsin, setIsValidatingIsin] = useState(false)
-	const [isinError, setIsinError] = useState<string | null>(null)
-	const locale = useLocale()
+	const [debouncedIsin, setDebouncedIsin] = useState('')
 	const t = useTranslations('pea')
 	const tCommon = useTranslations('common')
 	const tValidation = useTranslations('validation')
@@ -50,68 +56,48 @@ export function PeaHoldingForm() {
 
 	const isinValue = form.watch('isin')
 
+	const {
+		data: isinData,
+		isLoading: isValidatingIsin,
+		error: isinError,
+	} = useQuery({
+		queryKey: ['validate-isin', debouncedIsin],
+		queryFn: () => validateIsin(debouncedIsin),
+		enabled: debouncedIsin.length === 12,
+		retry: false,
+	})
+
 	useEffect(() => {
 		if (isinValue && isinValue.length === 12) {
-			const timeoutId = setTimeout(async () => {
-				setIsValidatingIsin(true)
-				setIsinError(null)
-				try {
-					const response = await fetch(`/api/validate-isin?isin=${isinValue}`)
-					if (!response.ok) {
-						setIsinError(
-							locale === 'fr'
-								? 'ISIN invalide ou introuvable'
-								: 'Invalid or not found ISIN'
-						)
-					} else {
-						const data = await response.json()
-						if (data.name && !form.getValues('name')) {
-							form.setValue('name', data.name)
-						}
-					}
-				} catch (error) {
-					console.error('ISIN validation error:', error)
-					setIsinError(
-						locale === 'fr'
-							? 'Erreur lors de la validation'
-							: 'Validation error'
-					)
-				} finally {
-					setIsValidatingIsin(false)
-				}
+			const timeoutId = setTimeout(() => {
+				setDebouncedIsin(isinValue)
 			}, 500)
-
 			return () => clearTimeout(timeoutId)
 		} else {
-			setIsinError(null)
+			setDebouncedIsin('')
 		}
-	}, [isinValue, form, locale])
+	}, [isinValue])
+
+	useEffect(() => {
+		if (isinData?.name && !form.getValues('name')) {
+			form.setValue('name', isinData.name)
+		}
+	}, [isinData, form])
 
 	async function onSubmit(data: PeaHoldingInput) {
 		if (isinError) {
-			toast.error(isinError)
+			toast.error(t('isinInvalidOrNotFound'))
 			return
 		}
 
-		setIsLoading(true)
 		try {
 			await addHolding(data)
-			toast.success(
-				locale === 'fr'
-					? 'Titre ajouté avec succès'
-					: 'Holding added successfully'
-			)
+			toast.success(t('holdingAddedSuccess'))
 			setOpen(false)
 			form.reset()
 		} catch (error) {
 			console.error(error)
-			toast.error(
-				locale === 'fr'
-					? "Erreur lors de l'ajout du titre"
-					: 'Error adding holding'
-			)
-		} finally {
-			setIsLoading(false)
+			toast.error(t('errorAddingHolding'))
 		}
 	}
 
@@ -135,13 +121,11 @@ export function PeaHoldingForm() {
 							name="isin"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>
-										{locale === 'fr' ? 'Code ISIN' : 'ISIN Code'}
-									</FormLabel>
+									<FormLabel>{t('isinCode')}</FormLabel>
 									<FormControl>
 										<div className="relative">
 											<Input
-												placeholder="FR0000000000"
+												placeholder={t('isinPlaceholder')}
 												maxLength={12}
 												{...field}
 											/>
@@ -151,7 +135,9 @@ export function PeaHoldingForm() {
 										</div>
 									</FormControl>
 									{isinError && (
-										<p className="text-sm text-destructive">{isinError}</p>
+										<p className="text-sm text-destructive">
+											{t('isinInvalidOrNotFound')}
+										</p>
 									)}
 									<FormMessage />
 								</FormItem>
@@ -162,12 +148,10 @@ export function PeaHoldingForm() {
 							name="name"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>
-										{locale === 'fr' ? 'Nom du titre' : 'Security name'}
-									</FormLabel>
+									<FormLabel>{t('securityName')}</FormLabel>
 									<FormControl>
 										<Input
-											placeholder={locale === 'fr' ? 'ETF World' : 'World ETF'}
+											placeholder={t('securityNamePlaceholder')}
 											{...field}
 										/>
 									</FormControl>
@@ -216,9 +200,7 @@ export function PeaHoldingForm() {
 							name="purchaseDate"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>
-										{locale === 'fr' ? "Date d'achat" : 'Purchase date'}
-									</FormLabel>
+									<FormLabel>{t('purchaseDate')}</FormLabel>
 									<FormControl>
 										<Input type="date" {...field} />
 									</FormControl>
@@ -236,9 +218,13 @@ export function PeaHoldingForm() {
 							</Button>
 							<Button
 								type="submit"
-								disabled={isLoading || isValidatingIsin || !!isinError}
+								disabled={
+									form.formState.isSubmitting || isValidatingIsin || !!isinError
+								}
 							>
-								{isLoading ? tCommon('loading') : tCommon('save')}
+								{form.formState.isSubmitting
+									? tCommon('loading')
+									: tCommon('save')}
 							</Button>
 						</div>
 					</form>

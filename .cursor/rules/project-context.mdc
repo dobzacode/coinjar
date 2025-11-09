@@ -20,7 +20,8 @@ CoinJar is a comprehensive financial portfolio management application designed s
   - Server state via React Server Components
   - URL state with nuqs for shareable states
   - Client state with React hooks
-- **Forms**: React Hook Form with Zod validation
+  - TanStack Query for client-side data fetching with caching
+- **Forms**: React Hook Form with Zod validation and `formState.isSubmitting` for loading states
 - **Animations**: Framer Motion for smooth transitions
 - **Charts**: Recharts for data visualization
 
@@ -61,6 +62,12 @@ CoinJar is a comprehensive financial portfolio management application designed s
    - Controlled dropdown states to prevent UI glitches
    - Consistent spacing across all pages (`space-y-sm`)
    - Modular component architecture for maintainability
+   - No hardcoded locale-based conditionals - all translations use next-intl
+8. **Data Fetching**:
+   - TanStack Query for ISIN validation with automatic caching and retry logic
+   - Debounced queries (500ms) to reduce API calls
+   - Stale-while-revalidate pattern for optimal UX
+   - Error handling with automatic recovery
 
 ### Caching Architecture
 
@@ -365,9 +372,17 @@ This pattern:
 - Zod schemas with factory functions accepting translation functions (`TranslationFn`)
 - next-intl integration for internationalized validation messages
 - React Hook Form for state management (without generic type parameters)
+- **`form.formState.isSubmitting`** for loading states instead of manual `useState`
 - zodResolver for validation integration
 - Server actions for form submissions
-- Toast notifications (Sonner) for user feedback
+- Toast notifications (Sonner) with fully internationalized messages (no hardcoded locale conditionals)
+- TanStack Query for client-side data fetching (ISIN validation)
+
+### Best Practices
+- **No hardcoded locale conditionals**: All strings use translation functions from next-intl
+- **Leverages React Hook Form state**: Uses `form.formState.isSubmitting` instead of manual loading state
+- **Smart caching**: TanStack Query caches validation results to avoid redundant API calls
+- **Error handling**: Proper error states with internationalized messages
 
 ## Database Schema
 

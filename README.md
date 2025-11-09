@@ -12,9 +12,10 @@ A modern, full-stack web application for tracking and managing your French savin
 - **PEE Tracking**: Monitor employee savings plans with contribution breakdowns
 - **Multi-language Support**: Full i18n support for English and French
 - **Dark Mode**: Beautiful theme switching with system preferences detection
-- **Real-time Validation**: Debounced ISIN validation for ETF/stock additions with proper ISIN format validation
-- **Toast Notifications**: Success/error feedback with Sonner
+- **Real-time Validation**: TanStack Query-powered ISIN validation with caching and error handling
+- **Toast Notifications**: Success/error feedback with Sonner and fully internationalized messages
 - **Skeleton Loading**: Comprehensive loading states across all pages for better UX
+- **Smart Forms**: All forms use `form.formState.isSubmitting` for precise loading state tracking
 
 ### 🎨 Design & UX
 
@@ -57,6 +58,7 @@ A modern, full-stack web application for tracking and managing your French savin
 - **UI Components**: Shadcn UI + Radix UI
 - **Animations**: Framer Motion
 - **Forms**: React Hook Form + Zod
+- **Data Fetching**: TanStack Query for client-side caching
 - **Charts**: Recharts
 - **Internationalization**: next-intl
 - **State Management**: URL state with nuqs
@@ -339,12 +341,17 @@ This provides a smooth, professional UX during data loading.
 
 ### ISIN Validation
 
-When adding securities to your PEA, the app automatically validates ISINs against Yahoo Finance with:
+When adding securities to your PEA, the app automatically validates ISINs against Yahoo Finance using TanStack Query:
 
-- Debounced requests (500ms) to avoid excessive API calls
-- Real-time format validation (regex pattern matching)
-- Proper URL encoding for security
-- Auto-filling security names from API response
+- **Query caching** - Validated ISINs are cached to avoid redundant API calls
+- **Debounced requests** (500ms) to avoid excessive API calls
+- **Real-time format validation** with regex pattern matching
+- **Error handling** - Automatic retry logic and error states
+- **Proper URL encoding** for security
+- **Auto-filling** security names from API response
+- **Stale-while-revalidate** pattern for optimal UX
+
+This provides a smoother experience with intelligent caching and automatic error recovery.
 
 ### Database Seeding
 
@@ -367,14 +374,16 @@ Run `pnpm db:seed` to populate your development database with realistic test dat
 
 ### Form Handling
 
-All forms use:
+All forms use modern best practices:
 
 - **Zod schemas** with factory functions that accept translation functions from next-intl
 - **Union type pattern** (`z.union([z.string(), z.number()]).pipe()`) for proper type coercion of number inputs
+- **React Hook Form state** - `form.formState.isSubmitting` replaces manual loading states for better precision
 - **Server actions** for form submissions, ensuring secure server-side processing
-- **Fully localized error messages** through next-intl integration
+- **Fully localized error messages** through next-intl integration with no hardcoded strings
+- **TanStack Query** for client-side data fetching with built-in caching and error handling
 
-This pattern solves common issues with HTML number inputs returning strings while maintaining full TypeScript type safety.
+This pattern solves common issues with HTML number inputs returning strings while maintaining full TypeScript type safety and eliminating the anti-pattern of locale-based conditional rendering.
 
 ### Dashboard Charts
 

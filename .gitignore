@@ -22,5 +22,6 @@ next-env.d.ts
 .idea
 SECURITY_AUDIT.md
 SETUP.md
+playwright-report
 
 

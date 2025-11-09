@@ -20,7 +20,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Settings } from 'lucide-react'
-import { useLocale, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -33,9 +33,6 @@ interface LivretARateFormProps {
 
 export function LivretARateForm({ currentRate }: LivretARateFormProps) {
 	const [open, setOpen] = useState(false)
-	const [isLoading, setIsLoading] = useState(false)
-
-	const locale = useLocale()
 	const t = useTranslations('livretA')
 	const tCommon = useTranslations('common')
 	const tValidation = useTranslations('validation')
@@ -48,25 +45,13 @@ export function LivretARateForm({ currentRate }: LivretARateFormProps) {
 	})
 
 	async function onSubmit(data: LivretARateInput) {
-		setIsLoading(true)
 		try {
 			await updateRate(data)
-
-			toast.success(
-				locale === 'fr'
-					? 'Taux mis à jour avec succès'
-					: 'Rate updated successfully'
-			)
+			toast.success(t('rateUpdatedSuccess'))
 			setOpen(false)
 		} catch (error) {
 			console.error(error)
-			toast.error(
-				locale === 'fr'
-					? 'Erreur lors de la mise à jour du taux'
-					: 'Error updating rate'
-			)
-		} finally {
-			setIsLoading(false)
+			toast.error(t('errorUpdatingRate'))
 		}
 	}
 
@@ -80,15 +65,9 @@ export function LivretARateForm({ currentRate }: LivretARateFormProps) {
 			</DialogTrigger>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>
-						{locale === 'fr'
-							? "Modifier le taux d'intérêt"
-							: 'Update interest rate'}
-					</DialogTitle>
+					<DialogTitle>{t('updateInterestRate')}</DialogTitle>
 					<DialogDescription>
-						{locale === 'fr'
-							? 'Mettez à jour le taux annuel du Livret A'
-							: 'Update the annual rate of Livret A'}
+						{t('updateInterestRateDescription')}
 					</DialogDescription>
 				</DialogHeader>
 				<Form {...form}>
@@ -98,9 +77,7 @@ export function LivretARateForm({ currentRate }: LivretARateFormProps) {
 							name="rate"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>
-										{locale === 'fr' ? 'Taux annuel (%)' : 'Annual rate (%)'}
-									</FormLabel>
+									<FormLabel>{t('annualRateLabel')}</FormLabel>
 									<FormControl>
 										<Input
 											type="number"
@@ -121,8 +98,10 @@ export function LivretARateForm({ currentRate }: LivretARateFormProps) {
 							>
 								{tCommon('cancel')}
 							</Button>
-							<Button type="submit" disabled={isLoading}>
-								{isLoading ? tCommon('loading') : tCommon('save')}
+							<Button type="submit" disabled={form.formState.isSubmitting}>
+								{form.formState.isSubmitting
+									? tCommon('loading')
+									: tCommon('save')}
 							</Button>
 						</div>
 					</form>

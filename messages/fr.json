@@ -57,7 +57,14 @@
 		"shares": "Actions",
 		"capitalGain": "Plus-value",
 		"manage": "Gérer",
-		"notConfigured": "Non configuré"
+		"notConfigured": "Non configuré",
+		"assetAllocation": "Répartition des actifs",
+		"assetAllocationDescription": "Distribution de votre patrimoine",
+		"performance": "Performance",
+		"performanceDescription": "Rendement de vos investissements",
+		"peaCapitalGain": "Plus-value PEA",
+		"peaPerformance": "Performance PEA",
+		"totalReturn": "Rendement total"
 	},
 	"livretA": {
 		"title": "Livret A",
@@ -78,8 +85,17 @@
 		"transactionsHistory": "Historique des transactions",
 		"transactionsHistoryDescription": "Historique de vos dépôts et retraits",
 		"annualRate": "Taux annuel",
+		"annualRateLabel": "Taux annuel (%)",
 		"interestPaidOn": "Intérêts versés le 1er janvier",
-		"manageYourSavings": "Gérez votre épargne réglementée"
+		"manageYourSavings": "Gérez votre épargne réglementée",
+		"transactionAddedSuccess": "Transaction ajoutée avec succès",
+		"errorAddingTransaction": "Erreur lors de l'ajout de la transaction",
+		"descriptionOptional": "Description (optionnel)",
+		"descriptionPlaceholder": "Note...",
+		"updateInterestRate": "Modifier le taux d'intérêt",
+		"updateInterestRateDescription": "Mettez à jour le taux annuel du Livret A",
+		"rateUpdatedSuccess": "Taux mis à jour avec succès",
+		"errorUpdatingRate": "Erreur lors de la mise à jour du taux"
 	},
 	"pea": {
 		"title": "PEA",
@@ -92,6 +108,7 @@
 		"holdings": "Positions",
 		"addHolding": "Ajouter une position",
 		"refreshPrices": "Actualiser les prix",
+		"refreshing": "Mise à jour...",
 		"symbol": "Symbole",
 		"quantity": "Quantité",
 		"purchasePrice": "Prix d'achat (€)",
@@ -104,8 +121,17 @@
 		"equitySavingsPlan": "Plan d'Épargne en Actions",
 		"name": "Nom",
 		"isin": "ISIN",
+		"isinCode": "Code ISIN",
 		"shares": "Parts",
-		"value": "Valeur"
+		"value": "Valeur",
+		"securityName": "Nom du titre",
+		"purchaseDate": "Date d'achat",
+		"isinInvalidOrNotFound": "ISIN invalide ou introuvable",
+		"validationError": "Erreur lors de la validation",
+		"holdingAddedSuccess": "Titre ajouté avec succès",
+		"errorAddingHolding": "Erreur lors de l'ajout du titre",
+		"isinPlaceholder": "FR0000000000",
+		"securityNamePlaceholder": "ETF World"
 	},
 	"pee": {
 		"title": "PEE",
@@ -120,6 +146,7 @@
 		"date": "Date",
 		"type": "Type",
 		"shares": "Actions",
+		"numberOfShares": "Nombre d'actions",
 		"noContributions": "Aucune contribution pour le moment",
 		"allContributions": "Toutes les contributions",
 		"recentContributions": "Contributions récentes",
@@ -128,9 +155,19 @@
 		"cumulativeAmounts": "Montants cumulés par source de contribution",
 		"employeeSavingsPlan": "Plan d'Épargne Entreprise",
 		"personal": "Personnel",
+		"personalContribution": "Versement personnel",
 		"abondement": "Abondement",
 		"participation": "Participation",
-		"interessement": "Intéressement"
+		"interessement": "Intéressement",
+		"updatePeeAccount": "Modifier le compte PEE",
+		"updatePeeAccountDescription": "Mettez à jour les informations de votre PEE",
+		"companyName": "Nom de l'entreprise",
+		"companyNamePlaceholder": "Mon entreprise",
+		"accountUpdatedSuccess": "Compte mis à jour avec succès",
+		"errorUpdatingAccount": "Erreur lors de la mise à jour du compte",
+		"contributionType": "Type de contribution",
+		"contributionAddedSuccess": "Contribution ajoutée avec succès",
+		"errorAddingContribution": "Erreur lors de l'ajout de la contribution"
 	},
 	"theme": {
 		"light": "Clair",
