@@ -1,3 +1,5 @@
+'use cache: private'
+
 import {
 	Card,
 	CardContent,
@@ -5,19 +7,16 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/components/ui/card'
-import { calculatePortfolioMetrics } from '@/features/pea/calculations'
 import { PeaHoldingForm } from '@/features/pea/components/pea-holding-form'
 import { PeaHoldingsTable } from '@/features/pea/components/pea-holdings-table'
 import { PeaMetricsCards } from '@/features/pea/components/pea-metrics-cards'
 import { PeaSkeleton } from '@/features/pea/components/pea-skeleton'
 import { RefreshPricesButton } from '@/features/pea/components/refresh-prices-button'
-import { auth } from '@/lib/auth'
-import { db } from '@/lib/db'
-import { peaAccounts } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { requireAuthForPage } from '@/lib/auth/page-helpers'
+import { calculatePortfolioMetrics } from '@/lib/calculations'
+import { getOrCreatePea } from '@/lib/services/account-service'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
-import { headers } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { cacheLife } from 'next/cache'
 import { Suspense } from 'react'
 
 interface PeaPageProps {
@@ -26,35 +25,8 @@ interface PeaPageProps {
 
 async function PeaContent() {
 	const t = await getTranslations('pea')
-	const session = await auth.api.getSession({
-		headers: await headers(),
-	})
-
-	if (!session?.user?.id) {
-		redirect('/login')
-	}
-
-	let userPea = await db.query.peaAccounts.findFirst({
-		where: eq(peaAccounts.userId, session.user.id),
-		with: {
-			holdings: {
-				orderBy: (holdings, { desc }) => [desc(holdings.purchaseDate)],
-			},
-		},
-	})
-
-	if (!userPea) {
-		const [newPea] = await db
-			.insert(peaAccounts)
-			.values({
-				userId: session.user.id,
-				name: 'Mon PEA',
-				totalInvestment: '0.00',
-			})
-			.returning()
-
-		userPea = { ...newPea, holdings: [] }
-	}
+	const userId = await requireAuthForPage()
+	const userPea = await getOrCreatePea(userId)
 
 	const metrics = calculatePortfolioMetrics(userPea.holdings)
 
@@ -92,6 +64,8 @@ async function PeaContent() {
 }
 
 export default async function PeaPage({ params }: PeaPageProps) {
+	cacheLife({ stale: 60 })
+
 	const { locale } = await params
 	setRequestLocale(locale)
 

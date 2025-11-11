@@ -1,18 +1,24 @@
 import { expect, test } from '@playwright/test'
 
 test.describe('Dashboard', () => {
-	test.beforeEach(async ({ page }) => {
+	test.beforeEach(async ({ page, context }) => {
+		await context.clearCookies()
 		await page.goto('/')
-		await page.waitForLoadState('networkidle')
+		await page.waitForLoadState('domcontentloaded')
 	})
 
 	test('should display the homepage', async ({ page }) => {
 		await expect(page).toHaveTitle(/CoinJar/)
 	})
 
-	test('should redirect to login if not authenticated', async ({ page }) => {
-		await page.goto('/en/dashboard')
-		await page.waitForURL(/\/login/, { timeout: 5000 })
+	test('should redirect to login if not authenticated', async ({
+		page,
+		context,
+	}) => {
+		await context.clearCookies()
+		await page.goto('/dashboard')
+		await page.waitForLoadState('domcontentloaded')
+		await page.waitForURL(/\/login/, { timeout: 10000 })
 		expect(page.url()).toContain('login')
 	})
 
@@ -34,8 +40,10 @@ test.describe('Dashboard', () => {
 })
 
 test.describe('Navigation', () => {
-	test('should have working navigation links', async ({ page }) => {
+	test('should have working navigation links', async ({ page, context }) => {
+		await context.clearCookies()
 		await page.goto('/')
+		await page.waitForLoadState('domcontentloaded')
 
 		const sidebar = page.locator('aside')
 		if (await sidebar.isVisible()) {
@@ -48,22 +56,27 @@ test.describe('Navigation', () => {
 })
 
 test.describe('Responsive Design', () => {
-	test('should be mobile responsive', async ({ page }) => {
+	test('should be mobile responsive', async ({ page, context }) => {
+		await context.clearCookies()
 		await page.setViewportSize({ width: 375, height: 667 })
 		await page.goto('/')
+		await page.waitForLoadState('domcontentloaded')
 		await expect(page).toHaveTitle(/CoinJar/)
 	})
 
-	test('should be tablet responsive', async ({ page }) => {
+	test('should be tablet responsive', async ({ page, context }) => {
+		await context.clearCookies()
 		await page.setViewportSize({ width: 768, height: 1024 })
 		await page.goto('/')
+		await page.waitForLoadState('domcontentloaded')
 		await expect(page).toHaveTitle(/CoinJar/)
 	})
 
-	test('should be desktop responsive', async ({ page }) => {
+	test('should be desktop responsive', async ({ page, context }) => {
+		await context.clearCookies()
 		await page.setViewportSize({ width: 1920, height: 1080 })
 		await page.goto('/')
+		await page.waitForLoadState('domcontentloaded')
 		await expect(page).toHaveTitle(/CoinJar/)
 	})
 })
-

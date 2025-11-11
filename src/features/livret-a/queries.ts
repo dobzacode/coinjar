@@ -1,4 +1,4 @@
-import { CACHE_REVALIDATION, getCacheTag } from '@/lib/cache/tags'
+import { getCacheTag } from '@/lib/cache/tags'
 import { db } from '@/lib/db'
 import {
 	livretA,
@@ -6,27 +6,21 @@ import {
 	livretATransactions,
 } from '@/lib/db/schema'
 import { desc, eq } from 'drizzle-orm'
-import { unstable_cache } from 'next/cache'
+import { cacheLife, cacheTag } from 'next/cache'
 
 export async function getLivretAByUserId(userId: string) {
-	const getCachedLivretA = unstable_cache(
-		async () => {
-			return db.query.livretA.findFirst({
-				where: eq(livretA.userId, userId),
-				with: {
-					transactions: {
-						orderBy: [desc(livretATransactions.date)],
-					},
-				},
-			})
+	'use cache'
+	cacheTag(getCacheTag.livretA(userId))
+	cacheLife('hours')
+
+	return db.query.livretA.findFirst({
+		where: eq(livretA.userId, userId),
+		with: {
+			transactions: {
+				orderBy: [desc(livretATransactions.date)],
+			},
 		},
-		['livret-a', userId],
-		{
-			tags: [getCacheTag.livretA(userId)],
-			revalidate: CACHE_REVALIDATION.LIVRET_A,
-		}
-	)
-	return getCachedLivretA()
+	})
 }
 
 export async function createLivretA(userId: string) {

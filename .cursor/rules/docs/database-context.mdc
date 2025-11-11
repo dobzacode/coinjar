@@ -1,0 +1,432 @@
+---
+description: Database schema, tables, relationships, and Drizzle patterns
+---
+
+# Database Context
+
+**Last updated: November 11, 2025**
+
+## Database Setup
+
+**Provider**: Neon PostgreSQL (serverless)
+
+**ORM**: Drizzle
+
+**Client**: `src/db/client.ts`
+
+**Schema**: `src/db/schema.ts`
+
+**Migrations**: Use `pnpm db:push` (schema push, not migrations)
+
+## Tables
+
+### users
+
+**Purpose**: User accounts (managed by Better Auth)
+
+**Schema**:
+```typescript
+{
+  id: uuid (primary key)
+  email: text (unique, not null)
+  name: text (not null)
+  emailVerified: boolean (default false)
+  image: text (nullable)
+  createdAt: timestamp (default now())
+  updatedAt: timestamp (default now())
+}
+```
+
+**Relationships**:
+- Has one Livret A account
+- Has one PEA account
+- Has one PEE account
+
+**Important**: Created and managed by Better Auth, not manually inserted
+
+### livret_a
+
+**Purpose**: Livret A savings account data
+
+**Schema**:
+```typescript
+{
+  id: uuid (primary key)
+  userId: uuid (foreign key → users.id)
+  balance: numeric(10, 2) (current balance in euros)
+  currentRate: numeric(4, 2) (annual interest rate as percentage, e.g., 3.00 for 3%)
+  createdAt: timestamp (default now())
+  updatedAt: timestamp (default now())
+}
+```
+
+**Relationships**:
+- Belongs to one user
+- Has many transactions
+
+**Constraints**:
+- One account per user (enforced by unique userId)
+- Balance stored as decimal for precision
+
+**Default Values**:
+- balance: 0.00
+- currentRate: 3.00 (France's current Livret A rate)
+
+### livret_a_transactions
+
+**Purpose**: Transaction history for Livret A accounts
+
+**Schema**:
+```typescript
+{
+  id: uuid (primary key)
+  livretAId: uuid (foreign key → livret_a.id)
+  amount: numeric(10, 2) (transaction amount in euros)
+  type: enum('deposit', 'withdrawal', 'interest')
+  date: date (transaction date)
+  description: text (nullable, optional note)
+  createdAt: timestamp (default now())
+}
+```
+
+**Transaction Types**:
+- `deposit` - Money added to account
+- `withdrawal` - Money removed from account
+- `interest` - Annual interest credit (automated via cron)
+
+**Relationships**:
+- Belongs to one Livret A account
+
+**Important**:
+- Balance NOT stored here (calculated field)
+- Transactions ordered by date DESC for display
+- Description is optional (null allowed)
+
+### pea_accounts
+
+**Purpose**: PEA (equity savings plan) portfolio container
+
+**Schema**:
+```typescript
+{
+  id: uuid (primary key)
+  userId: uuid (foreign key → users.id)
+  name: text (account name, default "Mon PEA")
+  totalInvestment: numeric(12, 2) (total money invested in euros)
+  createdAt: timestamp (default now())
+  updatedAt: timestamp (default now())
+}
+```
+
+**Relationships**:
+- Belongs to one user
+- Has many holdings
+
+**Constraints**:
+- One account per user (enforced by unique userId)
+
+**Purpose of totalInvestment**:
+- Tracks cumulative money put into PEA
+- Used to calculate gain: `currentValue - totalInvestment`
+- Never decreases (even when selling, tracks money invested not current value)
+
+### pea_holdings
+
+**Purpose**: Individual securities/ETFs held in PEA
+
+**Schema**:
+```typescript
+{
+  id: uuid (primary key)
+  peaAccountId: uuid (foreign key → pea_accounts.id)
+  isin: char(12) (International Securities Identification Number)
+  name: text (security name, e.g., "Lyxor CAC 40 UCITS ETF")
+  shares: numeric(10, 4) (number of shares owned, up to 4 decimal places)
+  purchasePrice: numeric(10, 2) (price per share at purchase in euros)
+  purchaseDate: date (date of purchase)
+  lastUpdatedPrice: numeric(10, 2) (nullable, current price per share)
+  lastPriceUpdate: timestamp (nullable, when price was last fetched)
+  createdAt: timestamp (default now())
+  updatedAt: timestamp (default now())
+}
+```
+
+**Relationships**:
+- Belongs to one PEA account
+
+**ISIN Format**:
+- Exactly 12 characters
+- Pattern: `[A-Z]{2}[A-Z0-9]{9}[0-9]`
+- Example: `FR0010315770` (Lyxor CAC 40)
+- Validated before insertion
+
+**Important Fields**:
+- `shares` - Supports fractional shares (4 decimal places)
+- `lastUpdatedPrice` - Nullable (null until first price fetch)
+- `lastPriceUpdate` - Nullable (null until first price fetch)
+
+**Calculated Values** (not stored):
+- Purchase value: `shares * purchasePrice`
+- Current value: `shares * lastUpdatedPrice` (if price available)
+- Gain: `currentValue - purchaseValue`
+- Performance: `(gain / purchaseValue) * 100`
+
+### pee_accounts
+
+**Purpose**: PEE (employee savings plan) data
+
+**Schema**:
+```typescript
+{
+  id: uuid (primary key)
+  userId: uuid (foreign key → users.id)
+  companyName: text (employer name)
+  sharePrice: numeric(10, 2) (current price per share in euros)
+  totalShares: numeric(10, 4) (total shares owned)
+  createdAt: timestamp (default now())
+  updatedAt: timestamp (default now())
+}
+```
+
+**Relationships**:
+- Belongs to one user
+- Has many contributions
+
+**Constraints**:
+- One account per user (enforced by unique userId)
+
+**Important**:
+- Share price manually updated (no external API for company shares)
+- Total shares calculated from sum of all contributions
+- Account value: `totalShares * sharePrice`
+
+### pee_contributions
+
+**Purpose**: Contribution history for PEE accounts
+
+**Schema**:
+```typescript
+{
+  id: uuid (primary key)
+  peeAccountId: uuid (foreign key → pee_accounts.id)
+  type: enum('personal', 'abondement', 'participation', 'interessement')
+  amount: numeric(10, 2) (contribution amount in euros)
+  shares: numeric(10, 4) (shares received for this contribution)
+  date: date (contribution date)
+  createdAt: timestamp (default now())
+}
+```
+
+**Contribution Types**:
+- `personal` - Employee's personal contribution
+- `abondement` - Employer matching contribution
+- `participation` - Profit sharing from company
+- `interessement` - Incentive bonus from company
+
+**Relationships**:
+- Belongs to one PEE account
+
+**Important**:
+- Shares calculated: `amount / sharePrice` at contribution time
+- Ordered by date DESC for display
+- Each type has different tax implications (not tracked in app)
+
+## Drizzle Patterns
+
+### Database Client
+
+**Location**: `src/db/client.ts`
+
+```typescript
+import { drizzle } from 'drizzle-orm/neon-http'
+import { neon } from '@neondatabase/serverless'
+
+const sql = neon(process.env.DATABASE_URL!)
+export const db = drizzle(sql)
+```
+
+### Query Patterns
+
+**Select with Relations**:
+```typescript
+const livretA = await db.query.livretA.findFirst({
+  where: eq(livretA.userId, userId),
+  with: {
+    transactions: {
+      orderBy: [desc(livretATransactions.date)],
+      limit: 10
+    }
+  }
+})
+```
+
+**Insert**:
+```typescript
+await db.insert(livretATransactions).values({
+  livretAId: account.id,
+  amount: parsed.amount,
+  type: parsed.type,
+  date: parsed.date,
+  description: parsed.description
+})
+```
+
+**Update**:
+```typescript
+await db
+  .update(livretA)
+  .set({ 
+    balance: newBalance,
+    updatedAt: new Date()
+  })
+  .where(eq(livretA.id, accountId))
+```
+
+**Delete**:
+```typescript
+await db
+  .delete(peaHoldings)
+  .where(eq(peaHoldings.id, holdingId))
+```
+
+### Transaction Handling
+
+**Pattern**: Drizzle does not have built-in transaction support in HTTP mode
+
+**Workaround**: Use sequential queries with error handling
+
+```typescript
+try {
+  await db.insert(table1).values(data1)
+  await db.insert(table2).values(data2)
+} catch (error) {
+  // Manual rollback or error handling
+  throw error
+}
+```
+
+**Future**: Consider switching to WebSocket connection for transaction support
+
+## Service Layer Patterns
+
+### getOrCreate Pattern
+
+**Purpose**: Ensure account exists before operations
+
+**Location**: `src/lib/services/account-service.ts`
+
+```typescript
+export async function getOrCreateLivretA(userId: string) {
+  let account = await db.query.livretA.findFirst({
+    where: eq(livretA.userId, userId)
+  })
+  
+  if (!account) {
+    account = await db.insert(livretA).values({
+      userId,
+      balance: '0.00',
+      currentRate: '3.00'
+    }).returning()
+  }
+  
+  return account
+}
+```
+
+**Used By**: All feature pages to initialize accounts
+
+### Cached Queries
+
+**Pattern**: Wrap database queries in `unstable_cache`
+
+```typescript
+import { unstable_cache } from 'next/cache'
+import { getCacheTag } from '@/lib/cache/tags'
+
+export const getLivretA = unstable_cache(
+  async (userId: string) => {
+    return await db.query.livretA.findFirst({
+      where: eq(livretA.userId, userId),
+      with: { transactions: true }
+    })
+  },
+  ['livret-a'],
+  {
+    tags: [getCacheTag.livretA(userId)],
+    revalidate: 3600 // 1 hour
+  }
+)
+```
+
+**See**: Server Context for complete caching patterns
+
+## Data Integrity
+
+### Decimal Precision
+
+**Critical**: Always use string literals for decimal values
+
+```typescript
+// Correct
+balance: '1234.56'
+
+// Wrong (loses precision)
+balance: 1234.56
+```
+
+**Why**: JavaScript numbers lose precision with decimals
+
+### Foreign Key Constraints
+
+**Enforced**: Database enforces all foreign key relationships
+
+**Cascading**: Not configured (must manually delete related records)
+
+### Validation
+
+**Schema Level**: Drizzle enforces types and constraints
+
+**Application Level**: Zod schemas validate before database insertion
+
+**Example**: ISIN format validated by Zod before hitting database
+
+## Indexes
+
+**Current**: No custom indexes (uses default primary keys and foreign keys)
+
+**Future Optimization**:
+- Index on `livret_a_transactions.date` for faster sorting
+- Index on `pea_holdings.isin` for lookups
+- Index on `pee_contributions.type` for filtering
+
+## Migrations
+
+**Current Approach**: Schema push (`pnpm db:push`)
+
+**Pros**: Simple, works for development
+
+**Cons**: No migration history, risky for production
+
+**Future**: Implement proper migration system with `drizzle-kit`
+
+## Seeding
+
+**Location**: `scripts/seed.ts`
+
+**Purpose**: Create development data
+
+**Includes**:
+- Mock user (email: `mock@example.com`, password: `Password123!`)
+- Livret A with 5 transactions
+- PEA with 4 ETF holdings
+- PEE with 6 contributions
+
+**Run**: `pnpm db:seed`
+
+## Common Pitfalls
+
+1. **Decimal as Number**: Always use strings for decimal values
+2. **Missing Foreign Keys**: Ensure parent exists before inserting child
+3. **Null Handling**: Check for null before accessing nullable fields
+4. **Date Formatting**: Use `new Date()` for timestamps, `YYYY-MM-DD` for dates
+5. **ISIN Validation**: Always validate format before API calls

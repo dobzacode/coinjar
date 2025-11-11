@@ -1,28 +1,14 @@
 'use server'
 
-import { auth } from '@/lib/auth'
-import { getCacheTag } from '@/lib/cache/tags'
+import { requireAuth } from '@/lib/auth/helpers'
+import { invalidateFeatureCache } from '@/lib/cache/helpers'
 import { db } from '@/lib/db'
 import { peeAccounts, peeContributions } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { revalidatePath, updateTag } from 'next/cache'
-import { headers } from 'next/headers'
 import type { PeeAccountInput, PeeContributionInput } from './schema'
 
-async function getCurrentUser() {
-	const session = await auth.api.getSession({
-		headers: await headers(),
-	})
-
-	if (!session?.user?.id) {
-		throw new Error('Non authentifié')
-	}
-
-	return session.user.id
-}
-
 export async function addContribution(data: PeeContributionInput) {
-	const userId = await getCurrentUser()
+	const userId = await requireAuth()
 
 	const userPee = await db.query.peeAccounts.findFirst({
 		where: eq(peeAccounts.userId, userId),
@@ -51,16 +37,13 @@ export async function addContribution(data: PeeContributionInput) {
 		})
 		.where(eq(peeAccounts.id, userPee.id))
 
-	updateTag(getCacheTag.pee(userId))
-	updateTag(getCacheTag.dashboard(userId))
-	revalidatePath('/dashboard')
-	revalidatePath('/dashboard/pee')
+	await invalidateFeatureCache(userId, 'pee')
 
 	return { success: true }
 }
 
 export async function updatePeeAccount(data: PeeAccountInput) {
-	const userId = await getCurrentUser()
+	const userId = await requireAuth()
 
 	const userPee = await db.query.peeAccounts.findFirst({
 		where: eq(peeAccounts.userId, userId),
@@ -79,10 +62,7 @@ export async function updatePeeAccount(data: PeeAccountInput) {
 		})
 		.where(eq(peeAccounts.id, userPee.id))
 
-	updateTag(getCacheTag.pee(userId))
-	updateTag(getCacheTag.dashboard(userId))
-	revalidatePath('/dashboard')
-	revalidatePath('/dashboard/pee')
+	await invalidateFeatureCache(userId, 'pee')
 
 	return { success: true }
 }

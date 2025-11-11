@@ -1,0 +1,314 @@
+---
+description: API routes, server actions, and external API integrations
+---
+
+# API Context
+
+**Last updated: November 11, 2025**
+
+## API Routes
+
+### Authentication API
+
+**Route**: `/api/auth/[...all]`
+
+**Handler**: Better Auth catch-all route
+
+**Location**: `src/app/api/auth/[...all]/route.ts`
+
+**Endpoints Provided**:
+- `POST /api/auth/sign-in/email` - Email/password sign-in
+- `POST /api/auth/sign-up/email` - Email/password sign-up
+- `GET/POST /api/auth/sign-in/google` - Google OAuth flow
+- `POST /api/auth/sign-out` - Sign out
+
+**Configuration**: `src/lib/auth/auth.ts`
+
+### ISIN Validation API
+
+**Route**: `GET /api/validate-isin?isin={code}`
+
+**Purpose**: Validates ISIN codes against Yahoo Finance API
+
+**Location**: `src/app/api/validate-isin/route.ts`
+
+**Request**:
+```typescript
+GET /api/validate-isin?isin=FR0010315770
+```
+
+**Response Success**:
+```typescript
+{
+  name: "Lyxor CAC 40 (DR) UCITS ETF",
+  symbol: "CAC.PA"
+}
+```
+
+**Response Error**:
+```typescript
+{
+  error: "Invalid ISIN code"
+}
+// Status: 404
+```
+
+**Security Measures**:
+1. **ISIN Format Validation**: 
+   - Regex: `/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/`
+   - Exactly 12 characters
+   - Fails fast if format invalid
+
+2. **URL Encoding**:
+   - Uses `URLSearchParams` to encode ISIN
+   - Prevents URL injection attacks
+   - Safe for special characters
+
+3. **Error Handling**:
+   - Returns 404 for invalid/not found ISINs
+   - Returns 500 for API errors
+   - No sensitive data in error messages
+
+**Rate Limiting**: None on server (debounced on client - see Frontend Context)
+
+**External API**: Yahoo Finance query API
+- Endpoint: `https://query1.finance.yahoo.com/v1/finance/search`
+- Query format: `{ISIN}.PA` (assumes Paris exchange)
+- Returns security name and symbol
+
+### Cron Job APIs
+
+**Livret A Interest Calculation**:
+- **Route**: `GET /api/cron/livret-a-interest`
+- **Schedule**: January 1st at midnight (0 0 1 1 *)
+- **Purpose**: Calculate and credit annual interest for all Livret A accounts
+- **Location**: `src/app/api/cron/livret-a-interest/route.ts`
+- **Process**:
+  1. Fetch all Livret A accounts
+  2. Calculate interest: `balance * rate`
+  3. Create interest transaction
+  4. Update account balance
+  5. Invalidate all user caches
+
+**PEA Price Updates**:
+- **Route**: `GET /api/cron/update-etf-prices`
+- **Schedule**: Daily at 2 AM (0 2 * * *)
+- **Purpose**: Update prices for all PEA holdings
+- **Location**: `src/app/api/cron/update-etf-prices/route.ts`
+- **Process**:
+  1. Fetch all PEA holdings with ISINs
+  2. Parallel fetch prices using `fetchMultipleEtfPrices()`
+  3. Update `lastUpdatedPrice` and `lastPriceUpdate` timestamp
+  4. Skip holdings where API fails (preserves old price)
+  5. Invalidate all PEA caches
+
+**Vercel Cron Configuration**:
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/livret-a-interest",
+      "schedule": "0 0 1 1 *"
+    },
+    {
+      "path": "/api/cron/update-etf-prices",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
+```
+
+## Server Actions
+
+### Pattern
+
+All server actions follow this structure:
+
+```typescript
+'use server'
+
+import { requireAuth } from '@/lib/auth/helpers'
+import { invalidateFeatureCache } from '@/lib/cache/helpers'
+
+export async function actionName(data: FormData) {
+  // 1. Authenticate
+  const userId = await requireAuth()
+  
+  // 2. Validate input
+  const parsed = schema.parse(Object.fromEntries(data))
+  
+  // 3. Perform database operation
+  const result = await db.insert(table).values(...)
+  
+  // 4. Invalidate caches
+  await invalidateFeatureCache(userId, 'feature-name')
+  
+  // 5. Return result
+  return { success: true, data: result }
+}
+```
+
+### Action Locations
+
+**Livret A**: `src/features/livret-a/actions.ts`
+- `addTransaction()` - Add deposit/withdrawal
+- `updateRate()` - Update interest rate
+
+**PEA**: `src/features/pea/actions.ts`
+- `addHolding()` - Add new holding with ISIN validation
+- `updateHolding()` - Edit existing holding
+- `deleteHolding()` - Remove holding
+- `refreshPrices()` - Manually refresh all prices
+
+**PEE**: `src/features/pee/actions.ts`
+- `addContribution()` - Add contribution (any type)
+- `updateSharePrice()` - Update company share price
+
+### Authentication in Actions
+
+**Always Required**: Every action must call `requireAuth()` first
+
+```typescript
+const userId = await requireAuth()
+```
+
+**What It Does**:
+1. Checks Better Auth session
+2. If no session → throws error with redirect
+3. If session exists → returns userId
+4. Consistent error handling across all actions
+
+**Never**:
+- Don't create your own auth checks
+- Don't skip authentication
+- Don't use `getCurrentUserId()` in actions (use `requireAuth()`)
+
+### Cache Invalidation in Actions
+
+**Pattern**: Always invalidate both feature cache AND dashboard cache
+
+```typescript
+await invalidateFeatureCache(userId, 'pea')
+// This automatically also invalidates dashboard cache
+```
+
+**Why Dashboard Cache**:
+- Dashboard shows aggregate data from all features
+- Must stay in sync with individual features
+- Prevents stale data in overview cards
+
+**Helper Location**: `src/lib/cache/helpers.ts`
+
+### Error Handling
+
+**Pattern**: Let errors bubble up to client
+
+```typescript
+try {
+  const result = await action(data)
+  toast.success(t('success'))
+} catch (error) {
+  toast.error(t('error'))
+}
+```
+
+**Server-Side**:
+- Database errors handled by Drizzle
+- Validation errors thrown by Zod
+- Auth errors thrown by Better Auth
+- All errors propagate to client
+
+**Never**:
+- Don't catch and hide errors
+- Don't return `{ success: false }` for errors
+- Throw errors and let client handle them
+
+### Form Data Parsing
+
+**Pattern**: Convert FormData to object for Zod validation
+
+```typescript
+const formData = Object.fromEntries(data)
+const parsed = schema.parse(formData)
+```
+
+**Number Handling**: See Frontend Context for number input coercion pattern
+
+### Return Values
+
+**Success**:
+```typescript
+return { success: true, data: result }
+```
+
+**Errors**: Throw error (don't return error object)
+
+```typescript
+throw new Error('Something went wrong')
+```
+
+## External API Integration
+
+### Yahoo Finance API
+
+**Purpose**: ETF/stock price fetching and ISIN validation
+
+**Base URL**: `https://query1.finance.yahoo.com/v1/finance/`
+
+**Endpoints Used**:
+1. `/search` - ISIN validation and name lookup
+2. `/quote` - Price fetching for holdings
+
+**Helper Functions**: `src/lib/yahoo-finance.ts`
+
+**Functions**:
+```typescript
+async function validateIsin(isin: string): Promise<{ name: string; symbol: string }>
+async function fetchEtfPrice(isin: string): Promise<number | null>
+async function fetchMultipleEtfPrices(isins: string[]): Promise<Map<string, number>>
+```
+
+**Error Handling**:
+- Returns `null` for failed price fetches (preserves old data)
+- Throws error for invalid ISINs in validation
+- Parallel fetching with `Promise.allSettled()` for batch updates
+
+**Security**:
+- ISIN format validation before API call
+- URL encoding using `URLSearchParams`
+- No user input directly in URLs
+
+## API Conventions
+
+### Authentication
+- All server actions require authentication
+- Use `requireAuth()` helper
+- No API key or token management (uses session cookies)
+
+### Error Responses
+- Validation errors: Throw Zod error (client catches)
+- Auth errors: Redirect to login
+- Database errors: Let Drizzle error bubble up
+- External API errors: Return null or throw
+
+### Rate Limiting
+- Client-side debouncing (500ms for ISIN validation)
+- No server-side rate limiting yet
+- Future: Add rate limiting middleware
+
+### CORS
+- Not needed (same-origin)
+- All API routes served from same domain
+
+## Testing
+
+### API Route Testing
+- Use Playwright for E2E testing
+- Mock Better Auth in tests
+- Test error cases (invalid ISIN, auth failure)
+
+### Server Action Testing
+- Unit test business logic separately
+- Mock database calls
+- Mock auth session
+- See `tests/utils/test-helpers.ts` for mocking utilities

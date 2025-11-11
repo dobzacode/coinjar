@@ -59,12 +59,12 @@ export function MobileNav() {
 			</SheetTrigger>
 			<SheetContent side="left" className="w-64">
 				<SheetHeader>
-					<SheetTitle className="flex items-center gap-sm text-left">
-						<Wallet className="h-6 w-6" />
+					<SheetTitle className="flex items-center gap-2 text-left">
+						<Wallet className="h-6 w-6 flex-shrink-0" />
 						<span className="text-lg font-semibold">CoinJar</span>
 					</SheetTitle>
 				</SheetHeader>
-				<nav className="mt-md space-y-1">
+				<nav className="mt-6 space-y-1">
 					{navItems.map((item) => {
 						const Icon = item.icon
 						const isActive = pathname === item.href
@@ -74,14 +74,16 @@ export function MobileNav() {
 								href={item.href}
 								onClick={() => setOpen(false)}
 								className={cn(
-									'flex items-center gap-sm rounded-md px-sm py-sm text-sm font-medium transition-colors',
+									'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
 									isActive
 										? 'bg-primary text-primary-foreground'
 										: 'text-muted-foreground hover:bg-muted hover:text-foreground'
 								)}
 							>
-								<Icon className="h-5 w-5" />
-								{t(item.titleKey as 'dashboard' | 'livretA' | 'pee' | 'pea')}
+								<Icon className="h-5 w-5 flex-shrink-0" />
+								<span>
+									{t(item.titleKey as 'dashboard' | 'livretA' | 'pee' | 'pea')}
+								</span>
 							</Link>
 						)
 					})}

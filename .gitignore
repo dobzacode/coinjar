@@ -23,5 +23,6 @@ next-env.d.ts
 SECURITY_AUDIT.md
 SETUP.md
 playwright-report
+test-results
 
 

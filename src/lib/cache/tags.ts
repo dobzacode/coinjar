@@ -15,12 +15,3 @@ export const getCacheTag = {
 	pee: (userId: string) => `${CACHE_TAGS.PEE}-${userId}`,
 	dashboard: (userId: string) => `${CACHE_TAGS.DASHBOARD}-${userId}`,
 }
-
-export const CACHE_REVALIDATION = {
-	LIVRET_A: 3600,
-	PEA: 3600,
-	PEE: 3600,
-	DASHBOARD: 300,
-	SHORT: 60,
-	LONG: 7200,
-} as const

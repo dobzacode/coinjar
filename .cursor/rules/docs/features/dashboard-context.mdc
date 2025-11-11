@@ -1,0 +1,564 @@
+---
+description: Dashboard data aggregation, chart calculations, and wealth tracking
+---
+
+# Dashboard Context
+
+**Last updated: November 11, 2025**
+
+## Business Overview
+
+**Purpose**: Unified view of all financial accounts
+
+**Key Features**:
+- Total wealth aggregation across all accounts
+- Wealth evolution chart (historical view)
+- Asset allocation breakdown
+- Performance metrics
+- Quick links to individual accounts
+
+## Data Structure
+
+### Location
+
+`src/features/dashboard/services.ts`
+
+### getDashboardData Function
+
+**Purpose**: Consolidated data fetching for dashboard
+
+**Returns**:
+```typescript
+interface DashboardData {
+  livretA: {
+    balance: number
+    rate: string | null
+  }
+  pea: {
+    totalInvestment: number
+    currentValue: number
+    gain: number
+    performance: number
+  }
+  pee: {
+    value: number
+    shares: string | null
+  }
+  totalBalance: number
+  totalGain: number
+  signupDate: Date | null
+  earliestTransaction: Date | null
+}
+```
+
+**Implementation**: Parallel fetching with `Promise.all`
+
+**Benefits**:
+- Single function call from page
+- Type-safe return value
+- Eliminates triple-fetching
+- Single source of truth
+
+## Aggregated Metrics
+
+### Total Wealth
+
+**Formula**:
+```typescript
+totalBalance = livretA.balance + pea.currentValue + pee.value
+```
+
+**Meaning**: Sum of all account balances/values
+
+**Display**: Large card at top of dashboard
+
+**Format**: Currency (euros)
+
+### Total Gain
+
+**Current Implementation**: Only PEA gain
+
+```typescript
+totalGain = pea.gain
+```
+
+**Future**: Should include all account gains
+
+**Why PEA Only**: 
+- Livret A: Interest already included in balance
+- PEE: No gain tracking yet (would need initial values)
+
+**Display**: Card with percentage
+
+### Return on Investment
+
+**Location**: `src/features/dashboard/calculations.ts`
+
+**Function**: `calculateTotalReturn()`
+
+```typescript
+export function calculateTotalReturn(
+  totalBalance: number,
+  peaGain: number,
+  livretABalance: number,
+  livretAYield: number
+): number {
+  // Mock calculation for now
+  // Future: Calculate actual ROI across all accounts
+  return (peaGain / totalBalance) * 100
+}
+```
+
+**Current**: Simplified calculation
+
+**Future**: Comprehensive ROI considering:
+- Initial investments
+- Time-weighted returns
+- All account types
+
+## Chart Calculations
+
+### Location
+
+`src/features/dashboard/calculations.ts`
+
+### Chart Date Range
+
+**Function**: `calculateChartDateRange()`
+
+```typescript
+export function calculateChartDateRange(
+  signupDate: Date | null,
+  earliestTransaction: Date | null
+): { startDate: Date; dataPoints: number } {
+  // Determine start date (signup or first transaction, whichever is later)
+  const relevantDate = /* later of signup or earliest transaction */
+  
+  // Calculate months since start
+  const monthsSince = /* months from start to now */
+  
+  // Scale data points based on account age
+  const dataPoints = Math.min(Math.max(monthsSince, 2), 12)
+  
+  return { startDate, dataPoints }
+}
+```
+
+**Logic**:
+1. Start from user signup date OR first transaction (whichever is later)
+2. Calculate months since start
+3. Scale data points: 2-12 months displayed
+4. Newer accounts show less history (e.g., 2-3 months)
+5. Older accounts show up to 12 months
+
+**Why**: Prevents showing data from before user joined
+
+**Example**:
+- User signed up 3 months ago → Show 3 data points
+- User signed up 15 months ago → Show 12 data points (cap)
+- User signed up yesterday → Show 2 data points (minimum)
+
+### Wealth Data Points
+
+**Function**: `generateWealthDataPoints()`
+
+```typescript
+export function generateWealthDataPoints(
+  startDate: Date,
+  dataPoints: number,
+  balances: AccountBalances
+): WealthDataPoint[] {
+  // Generate data points from startDate to now
+  // Each point includes:
+  // - date (formatted for chart)
+  // - livretA (balance at that time - mock)
+  // - pea (value at that time - mock)
+  // - pee (value at that time - mock)
+  
+  return dataPoints.map((/* ... */) => ({
+    date: format(date, locale),
+    livretA: /* mock historical balance */,
+    pea: /* mock historical value */,
+    pee: /* mock historical value */
+  }))
+}
+```
+
+**Current**: Mock historical data
+
+**Future**: Actual historical tracking
+
+**Chart Type**: Stacked area chart
+
+**Purpose**: Show wealth evolution over time
+
+### Locale-Aware Formatting
+
+**Date Formatting**:
+```typescript
+new Intl.DateTimeFormat(locale, {
+  month: 'short',
+  year: 'numeric'
+}).format(date)
+```
+
+**Result**:
+- English: "Jan 2024", "Feb 2024"
+- French: "janv. 2024", "févr. 2024"
+
+**Currency Formatting**:
+```typescript
+new Intl.NumberFormat(locale, {
+  style: 'currency',
+  currency: 'EUR'
+}).format(amount)
+```
+
+**Result**:
+- English: "€1,234.56"
+- French: "1 234,56 €"
+
+## Charts
+
+### Wealth Evolution Chart
+
+**Type**: Recharts Area Chart (stacked)
+
+**Data**: Generated wealth data points
+
+**X-Axis**: Date (formatted with locale)
+
+**Y-Axis**: Amount (euros)
+
+**Areas**:
+1. Livret A (green)
+2. PEA (blue)
+3. PEE (purple)
+
+**Stacked**: Shows total wealth at each point
+
+**Interactive**: Hover to see breakdown
+
+### Asset Allocation Chart
+
+**Type**: Recharts Pie Chart
+
+**Data**: Current balances by account type
+
+**Segments**:
+1. Livret A (balance)
+2. PEA (current value)
+3. PEE (value)
+
+**Percentages**: Auto-calculated by Recharts
+
+**Colors**: Match account theme colors
+
+### Performance Chart
+
+**Type**: Recharts Bar Chart
+
+**Data**: Gain/loss by account
+
+**Current**: Only PEA has gain tracking
+
+**Future**: Include all account gains
+
+## Components
+
+### Page Location
+
+`src/app/[locale]/dashboard/page.tsx`
+
+### Main Sections
+
+**OverviewCards**:
+- Total wealth
+- Total gain
+- Return on investment
+- Quick stats
+
+**AccountCards**:
+- Individual account summaries
+- Balance/value
+- Quick links to detail pages
+
+**WealthEvolutionChart**:
+- Stacked area chart
+- Historical wealth growth
+- Legend for each account type
+
+**AssetAllocationChart**:
+- Pie chart
+- Current distribution
+- Percentages
+
+### Skeleton Loading
+
+**OverviewCardsSkeleton**: 3 card skeletons
+
+**AccountCardsSkeleton**: 3 card skeletons
+
+**Usage**: Suspense boundaries for progressive loading
+
+## Data Fetching
+
+### Pattern
+
+**Page Component**:
+```typescript
+export default async function DashboardPage() {
+  const userId = await requireAuthForPage()
+  
+  // Single function call
+  const dashboardData = await getDashboardData(userId)
+  
+  return <DashboardContent data={dashboardData} />
+}
+```
+
+**Service Function**:
+```typescript
+export async function getDashboardData(userId: string) {
+  const [livretA, pea, pee, user] = await Promise.all([
+    getLivretAData(userId),
+    getPeaData(userId),
+    getPeeData(userId),
+    getUserData(userId)
+  ])
+  
+  return {
+    /* aggregated data */
+  }
+}
+```
+
+**Benefits**:
+- Parallel fetching (fast)
+- Single source of truth
+- Type-safe
+- Cached with `unstable_cache`
+
+## Cache Management
+
+### Cache Tag
+
+**Tag**: `dashboard-${userId}`
+
+**Includes**: All dashboard aggregated data
+
+### Invalidation
+
+**When**: Automatically invalidated by feature cache invalidation
+
+**Pattern**:
+```typescript
+// In any feature action
+await invalidateFeatureCache(userId, 'livret-a')
+// This also invalidates dashboard cache
+```
+
+**Why**: Dashboard shows data from all features, must stay in sync
+
+### Revalidation
+
+**Time**: 3600 seconds (1 hour)
+
+**Path**: `/dashboard`
+
+**On Mutation**: Immediate via `revalidateTag` + `router.refresh()`
+
+## Business Rules
+
+### Chart Start Date Logic
+
+**Priority**:
+1. If no signup date and no transactions → Start from today (empty state)
+2. If only signup date → Start from signup
+3. If only earliest transaction → Start from transaction
+4. If both → Start from **later** date (more accurate)
+
+**Why Later Date**: User might have signed up but not started using until later
+
+**Example**:
+- Signed up: January 1, 2024
+- First transaction: March 15, 2024
+- Chart starts: March 15, 2024 (actual usage)
+
+### Mock Data Generation
+
+**Current State**: Historical data is mock/interpolated
+
+**Why**: No historical tracking yet
+
+**Future**: Store actual historical snapshots
+
+**Mock Logic**:
+- Linear interpolation from 0 to current balance
+- Adds randomness for realistic appearance
+- Scales based on account age
+
+## Internationalization
+
+### Translation Keys
+
+**Location**: `messages/[locale].json`
+
+**Namespace**: `dashboard`
+
+**Keys**:
+- titles (Overview, Wealth Evolution, Asset Allocation)
+- metrics (Total Wealth, Total Gain, ROI)
+- accounts (Livret A, PEA, PEE)
+- chart labels (dates, amounts)
+
+### Locale-Aware Components
+
+**Chart Dates**: Use `Intl.DateTimeFormat` with locale
+
+**Currency**: Use `Intl.NumberFormat` with locale
+
+**Number Formatting**: Respects locale conventions
+
+## Performance Optimizations
+
+### Removed AnimatedWrapper
+
+**Why**: Faster initial render, better LCP
+
+**Trade-off**: Less fancy animations
+
+**Result**: Significantly faster page load
+
+### Parallel Data Fetching
+
+**Pattern**: `Promise.all` for independent queries
+
+**Benefit**: Faster than sequential fetching
+
+**Implementation**: In `getDashboardData()` service
+
+### Caching Strategy
+
+**unstable_cache**: Persistent caching with tags
+
+**Revalidation**: 1-hour stale-while-revalidate
+
+**Invalidation**: On any account mutation
+
+**Result**: Fast subsequent page loads
+
+## Testing
+
+### Unit Tests
+
+**Location**: `tests/unit/dashboard-calculations.test.ts`
+
+**Tests**:
+- Chart date range calculation
+- Data point generation
+- Total return calculation
+- Date logic edge cases
+
+### Component Tests
+
+**Location**: `tests/component/dashboard-*.test.ts`
+
+**Tests**:
+- Overview cards rendering
+- Account cards rendering
+- Chart rendering with data
+
+### E2E Tests
+
+**Location**: `tests/e2e/dashboard.spec.ts`
+
+**Tests**:
+- Dashboard loads for authenticated user
+- Shows correct aggregated data
+- Charts render properly
+- Links to detail pages work
+
+## Common Scenarios
+
+### New User
+
+1. User signs up today
+2. Dashboard shows empty state
+3. Total wealth: 0€
+4. Charts show minimal data (2 months minimum)
+5. Prompts to add accounts
+
+### After First Transaction
+
+1. User adds Livret A deposit: 1,000€
+2. Dashboard updates automatically
+3. Total wealth: 1,000€
+4. Chart shows growth from 0 to 1,000€
+5. Livret A card shows balance
+
+### Multiple Accounts
+
+1. Livret A: 1,000€
+2. PEA: 2,500€ (2,000€ invested, 500€ gain)
+3. PEE: 1,500€
+4. Total wealth: 5,000€
+5. Total gain: 500€ (from PEA)
+6. Chart shows all three stacked
+
+## Future Enhancements
+
+1. **Real Historical Tracking**: Store daily/weekly snapshots
+2. **Customizable Date Range**: User selects chart timeframe
+3. **Export**: Download charts as images/PDFs
+4. **Goals**: Set and track financial goals
+5. **Projections**: Forecast future wealth based on trends
+6. **Comparison**: Compare to previous periods (MoM, YoY)
+7. **Alerts**: Notify on milestones or unusual changes
+8. **Multiple Currencies**: Support non-EUR accounts
+
+## Troubleshooting
+
+### Chart Not Showing Data
+
+**Problem**: Chart is empty or shows no data
+
+**Solutions**:
+1. Check if user has any transactions
+2. Verify `earliestTransaction` is calculated correctly
+3. Check `generateWealthDataPoints()` is called with valid data
+4. Verify chart component receives data prop
+5. Check for JavaScript errors in console
+
+### Incorrect Total Wealth
+
+**Problem**: Sum doesn't match individual accounts
+
+**Solutions**:
+1. Verify all account balances are current
+2. Check `getDashboardData()` calculation logic
+3. Clear cache and refresh
+4. Check for null/undefined values
+5. Verify database data is correct
+
+### Chart Starts Too Early
+
+**Problem**: Chart shows data from before user started
+
+**Solutions**:
+1. Check `calculateChartDateRange()` logic
+2. Verify signup date is set correctly
+3. Check earliest transaction calculation
+4. Ensure "later date" logic is working
+5. Verify date comparisons are correct
+
+### Slow Dashboard Load
+
+**Problem**: Dashboard takes long to load
+
+**Solutions**:
+1. Check cache is working (`unstable_cache`)
+2. Verify parallel fetching with `Promise.all`
+3. Check database query performance
+4. Reduce chart data points if too many
+5. Profile with React DevTools

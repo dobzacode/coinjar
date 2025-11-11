@@ -1,0 +1,465 @@
+---
+description: Client components, form handling, and frontend patterns
+---
+
+# Frontend Context
+
+**Last updated: November 11, 2025**
+
+## Client Component Patterns
+
+### When to Use Client Components
+
+**Use `'use client'` for**:
+1. Event handlers (onClick, onChange, onSubmit)
+2. Browser APIs (localStorage, window, navigator)
+3. React hooks (useState, useEffect, custom hooks)
+4. Third-party libraries that use browser APIs
+5. Interactive forms with validation
+6. Animations and transitions
+
+**Default to Server Components** for everything else
+
+### Client Component Structure
+
+```typescript
+'use client'
+
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+
+export function MyForm() {
+  // State
+  const form = useForm({
+    resolver: zodResolver(schema)
+  })
+  
+  // Handlers
+  async function onSubmit(data) {
+    // Call server action
+  }
+  
+  // Render
+  return <form onSubmit={form.handleSubmit(onSubmit)}>...</form>
+}
+```
+
+## Form Handling
+
+### React Hook Form Setup
+
+**Library**: React Hook Form (no generic type parameters)
+
+**Validation**: Zod with zodResolver
+
+**Pattern**:
+```typescript
+'use client'
+
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { createSchema } from './schema'
+import { useTranslations } from 'next-intl'
+
+export function MyForm() {
+  const t = useTranslations('feature')
+  const schema = createSchema(t)
+  
+  const form = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      amount: 0,
+      date: new Date().toISOString().split('T')[0]
+    }
+  })
+}
+```
+
+**Critical**: Don't use generic type parameters with `useForm()` (TypeScript inference works without them)
+
+### Number Input Handling
+
+**Problem**: HTML number inputs return strings in form data
+
+**Solution**: Use Zod coercion
+
+```typescript
+// In schema.ts
+export function createSchema(t: TranslationFn) {
+  return z.object({
+    amount: z.union([z.string(), z.number()]).pipe(
+      z.coerce.number({ message: t('amountMustBeNumber') })
+        .positive(t('amountPositive'))
+    )
+  })
+}
+```
+
+**Or Use Shared Schema**:
+```typescript
+import { amountSchema } from '@/lib/validation/common-schemas'
+
+export function createSchema(t: TranslationFn) {
+  return z.object({
+    amount: amountSchema(t)
+  })
+}
+```
+
+**How It Works**:
+1. Accepts both string and number with `.union()`
+2. Uses `.pipe()` to coerce to number
+3. Validates as number with custom error messages
+4. Maintains TypeScript type inference
+
+### Form Loading States
+
+**Pattern**: Use `form.formState.isSubmitting`
+
+**Don't**: Create manual loading state with `useState`
+
+```typescript
+// Correct
+const isSubmitting = form.formState.isSubmitting
+
+<Button disabled={isSubmitting}>
+  {isSubmitting ? 'Submitting...' : 'Submit'}
+</Button>
+
+// Wrong - don't do this
+const [isLoading, setIsLoading] = useState(false)
+```
+
+**Why**: React Hook Form manages submission state automatically
+
+### Form Submission
+
+**Pattern**: Call server action and handle response
+
+```typescript
+async function onSubmit(data: FormValues) {
+  try {
+    const formData = new FormData()
+    Object.entries(data).forEach(([key, value]) => {
+      formData.append(key, String(value))
+    })
+    
+    await action(formData)
+    
+    toast.success(t('success'))
+    form.reset()
+    router.refresh() // Refresh server components
+    setOpen(false) // Close dialog
+  } catch (error) {
+    toast.error(t('error'))
+  }
+}
+```
+
+**Critical Steps**:
+1. Convert form data to FormData object
+2. Call server action
+3. Show toast notification (internationalized)
+4. Reset form
+5. **Must call `router.refresh()`** to update server components
+6. Close dialog/sheet if applicable
+
+### Validation Schema Factory Pattern
+
+**Pattern**: Schemas accept translation function
+
+```typescript
+// schema.ts
+import { TranslationFn } from '@/types'
+
+export function createSchema(t: TranslationFn) {
+  return z.object({
+    field: z.string().min(1, t('required'))
+  })
+}
+
+// component.tsx
+const t = useTranslations('feature')
+const schema = createSchema(t)
+```
+
+**Why**: Enables internationalized validation messages
+
+## TanStack Query
+
+### Setup
+
+**Library**: @tanstack/react-query
+
+**Provider**: In root layout
+
+```typescript
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+const queryClient = new QueryClient()
+
+<QueryClientProvider client={queryClient}>
+  {children}
+</QueryClientProvider>
+```
+
+### ISIN Validation Pattern
+
+**Use Case**: Real-time ISIN validation in PEA forms
+
+**Pattern**:
+```typescript
+import { useQuery } from '@tanstack/react-query'
+import { useDebounce } from '@/hooks/use-debounce'
+
+const debouncedIsin = useDebounce(isin, 500) // 500ms debounce
+
+const { data, isLoading, error } = useQuery({
+  queryKey: ['validate-isin', debouncedIsin],
+  queryFn: async () => {
+    const res = await fetch(`/api/validate-isin?isin=${debouncedIsin}`)
+    if (!res.ok) throw new Error('Invalid ISIN')
+    return res.json()
+  },
+  enabled: debouncedIsin.length === 12,
+  staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  retry: false
+})
+```
+
+**Features**:
+- Debounced queries (500ms) to reduce API calls
+- Automatic caching (5-minute stale time)
+- Only query when ISIN is 12 characters
+- No retries for failed validations
+
+**Benefits**:
+- Reduces API calls dramatically
+- Caches results to avoid duplicate requests
+- Better user experience with debouncing
+
+## Internationalization
+
+### Translation Hook
+
+```typescript
+import { useTranslations } from 'next-intl'
+
+const t = useTranslations('feature')
+
+<p>{t('message')}</p>
+```
+
+**Translation Files**: `messages/en.json`, `messages/fr.json`
+
+### Locale Hook
+
+```typescript
+import { useLocale } from 'next-intl'
+
+const locale = useLocale() // 'en' or 'fr'
+
+<Link href={`/${locale}/dashboard`}>Dashboard</Link>
+```
+
+### Type Translation Utilities
+
+**Location**: `src/lib/i18n/type-translators.ts`
+
+**Functions**:
+```typescript
+import { translateTransactionType, translateContributionType } from '@/lib/i18n/type-translators'
+
+// In component
+{translateTransactionType(transaction.type, t)}
+{translateContributionType(contribution.type, t)}
+```
+
+**Replaces Nested Ternaries**:
+```typescript
+// Before
+{transaction.type === 'deposit' ? t('deposit') : 
+ transaction.type === 'withdrawal' ? t('withdrawal') : 
+ t('interest')}
+
+// After
+{translateTransactionType(transaction.type, t)}
+```
+
+### Number Formatting
+
+**Pattern**: Use `Intl.NumberFormat` with locale
+
+```typescript
+const locale = useLocale()
+
+const formatted = new Intl.NumberFormat(locale, {
+  style: 'currency',
+  currency: 'EUR'
+}).format(amount)
+```
+
+### Date Formatting
+
+**Pattern**: Use `Intl.DateTimeFormat` with locale
+
+```typescript
+const formatted = new Intl.DateTimeFormat(locale, {
+  month: 'short',
+  year: 'numeric'
+}).format(date)
+```
+
+**Used In**: Dashboard wealth evolution chart
+
+## Styling Utilities
+
+### Amount Color and Prefix
+
+**Location**: `src/lib/utils/styling.ts`
+
+```typescript
+import { getAmountColor, getAmountPrefix } from '@/lib/utils/styling'
+
+<span className={getAmountColor(transaction.type)}>
+  {getAmountPrefix(transaction.type)}{amount}
+</span>
+```
+
+**Functions**:
+- `getAmountColor()` - Returns Tailwind class for text color
+- `getAmountPrefix()` - Returns '+' or '-' or empty string
+
+**Types Supported**: 'deposit', 'withdrawal', 'interest'
+
+## Dialog/Sheet Patterns
+
+### Dialog for Forms
+
+**Pattern**: Use Shadcn UI Dialog with controlled state
+
+```typescript
+const [open, setOpen] = useState(false)
+
+<Dialog open={open} onOpenChange={setOpen}>
+  <DialogTrigger asChild>
+    <Button>Add Transaction</Button>
+  </DialogTrigger>
+  <DialogContent>
+    <MyForm onSuccess={() => setOpen(false)} />
+  </DialogContent>
+</Dialog>
+```
+
+**Critical**: Pass `setOpen` to form so it can close dialog after submission
+
+### Sheet for Mobile Navigation
+
+**Pattern**: Use Shadcn UI Sheet
+
+```typescript
+<Sheet>
+  <SheetTrigger asChild>
+    <Button variant="ghost" size="icon">
+      <Menu />
+    </Button>
+  </SheetTrigger>
+  <SheetContent side="left">
+    <nav>...</nav>
+  </SheetContent>
+</Sheet>
+```
+
+**Auto-Close**: Add `onClick={() => setOpen(false)}` to navigation items
+
+## Dropdown Patterns
+
+### Language Picker
+
+**Pattern**: Use controlled state with `onSelect` handler
+
+```typescript
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button variant="ghost" size="icon">
+      <Globe />
+    </Button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent>
+    <DropdownMenuItem
+      onSelect={() => {
+        router.push(`/${newLocale}${pathname}`)
+      }}
+    >
+      English
+    </DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>
+```
+
+**Critical**: Use `onSelect` handler (not `onClick`) to ensure dropdown dismisses
+
+## Toast Notifications
+
+**Library**: Sonner
+
+**Setup**: `<Toaster />` in root layout
+
+**Usage**:
+```typescript
+import { toast } from 'sonner'
+
+toast.success(t('success'))
+toast.error(t('error'))
+```
+
+**Critical**: Always use translated messages (never hardcode English/French)
+
+## Responsive Patterns
+
+### Mobile Card Layouts
+
+**Pattern**: Conditional rendering based on breakpoint
+
+```typescript
+<div className="hidden md:block">
+  <Table>...</Table>
+</div>
+
+<div className="md:hidden space-y-sm">
+  {items.map(item => (
+    <Card key={item.id}>
+      <CardContent>...</CardContent>
+    </Card>
+  ))}
+</div>
+```
+
+**Breakpoints**:
+- Mobile: < 768px
+- Tablet: >= 768px (md)
+- Desktop: >= 1024px (lg)
+
+## Animation Patterns
+
+**Library**: Framer Motion
+
+**Current Usage**: Minimal (removed AnimatedWrapper for performance)
+
+**When to Use**:
+- Page transitions (if needed)
+- List animations (if needed)
+- Component entrance/exit (if needed)
+
+**Avoid**: Heavy animations on initial page load (hurts LCP)
+
+## Common Pitfalls
+
+1. **Missing `'use client'`**: Components with hooks/events need this directive
+2. **Forgetting router.refresh()**: After mutations, must refresh server components
+3. **Hardcoded locale strings**: Always use translation functions
+4. **Manual loading state**: Use `form.formState.isSubmitting` instead
+5. **onClick vs onSelect**: Use `onSelect` for dropdown items
+6. **Missing number coercion**: Number inputs need Zod coercion
+7. **Nested ternaries**: Use type translation utilities instead

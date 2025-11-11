@@ -1,30 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table'
-import {
-	calculateContributionsByType,
-	calculatePeeValue,
-} from '@/features/pee/calculations'
+import { ContributionTable } from '@/features/pee/components/contribution-table'
 import { PeeAccountForm } from '@/features/pee/components/pee-account-form'
 import { PeeContributionBreakdown } from '@/features/pee/components/pee-contribution-breakdown'
 import { PeeContributionForm } from '@/features/pee/components/pee-contribution-form'
 import { PeeContributionList } from '@/features/pee/components/pee-contribution-list'
 import { PeeMetricsCards } from '@/features/pee/components/pee-metrics-cards'
 import { PeeSkeleton } from '@/features/pee/components/pee-skeleton'
-import { auth } from '@/lib/auth'
-import { db } from '@/lib/db'
-import { peeAccounts } from '@/lib/db/schema'
-import { formatCurrency, formatDate } from '@/lib/utils'
-import { eq } from 'drizzle-orm'
+import { requireAuthForPage } from '@/lib/auth/page-helpers'
+import {
+	calculateContributionsByType,
+	calculatePeeValue,
+} from '@/lib/calculations'
+import { getOrCreatePee } from '@/lib/services/account-service'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
-import { headers } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { cacheLife } from 'next/cache'
 import { Suspense } from 'react'
 
 interface PeePageProps {
@@ -32,37 +21,12 @@ interface PeePageProps {
 }
 
 async function PeeContent() {
+	'use cache: private'
+	cacheLife({ stale: 60 })
+
 	const t = await getTranslations('pee')
-	const session = await auth.api.getSession({
-		headers: await headers(),
-	})
-
-	if (!session?.user?.id) {
-		redirect('/login')
-	}
-
-	let userPee = await db.query.peeAccounts.findFirst({
-		where: eq(peeAccounts.userId, session.user.id),
-		with: {
-			contributions: {
-				orderBy: (contributions, { desc }) => [desc(contributions.date)],
-			},
-		},
-	})
-
-	if (!userPee) {
-		const [newPee] = await db
-			.insert(peeAccounts)
-			.values({
-				userId: session.user.id,
-				companyName: 'Mon entreprise',
-				sharePrice: '0.00',
-				totalShares: '0.00',
-			})
-			.returning()
-
-		userPee = { ...newPee, contributions: [] }
-	}
+	const userId = await requireAuthForPage()
+	const userPee = await getOrCreatePee(userId)
 
 	const sharePrice = parseFloat(userPee.sharePrice)
 	const totalShares = parseFloat(userPee.totalShares)
@@ -108,46 +72,7 @@ async function PeeContent() {
 					<CardTitle>{t('allContributions')}</CardTitle>
 				</CardHeader>
 				<CardContent>
-					{userPee.contributions.length === 0 ? (
-						<p className="text-center text-muted-foreground">
-							{t('noContributions')}
-						</p>
-					) : (
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>{t('date')}</TableHead>
-									<TableHead>{t('type')}</TableHead>
-									<TableHead className="text-right">{t('amount')}</TableHead>
-									<TableHead className="text-right">{t('shares')}</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{userPee.contributions.map((contribution) => (
-									<TableRow key={contribution.id}>
-										<TableCell>
-											{formatDate(contribution.date, 'short')}
-										</TableCell>
-										<TableCell className="capitalize">
-											{contribution.type === 'personal'
-												? t('personal')
-												: contribution.type === 'abondement'
-													? t('abondement')
-													: contribution.type === 'participation'
-														? t('participation')
-														: t('interessement')}
-										</TableCell>
-										<TableCell className="text-right">
-											{formatCurrency(contribution.amount)}
-										</TableCell>
-										<TableCell className="text-right">
-											{parseFloat(contribution.shares).toFixed(6)}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					)}
+					<ContributionTable contributions={userPee.contributions} />
 				</CardContent>
 			</Card>
 		</div>
