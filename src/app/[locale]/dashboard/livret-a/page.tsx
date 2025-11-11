@@ -1,5 +1,3 @@
-'use cache: private'
-
 import {
 	Card,
 	CardContent,
@@ -24,6 +22,9 @@ interface LivretAPageProps {
 }
 
 async function LivretAContent() {
+	'use cache: private'
+	cacheLife({ stale: 60 })
+
 	const t = await getTranslations('livretA')
 	const userId = await requireAuthForPage()
 	const userLivret = await getOrCreateLivretA(userId)
@@ -89,8 +90,6 @@ async function LivretAContent() {
 }
 
 export default async function LivretAPage({ params }: LivretAPageProps) {
-	cacheLife({ stale: 60 })
-
 	const { locale } = await params
 	setRequestLocale(locale)
 

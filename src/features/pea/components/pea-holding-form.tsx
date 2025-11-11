@@ -22,6 +22,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, Plus } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -233,3 +234,11 @@ export function PeaHoldingForm() {
 		</Dialog>
 	)
 }
+
+export const PeaHoldingFormDynamic = dynamic(
+	() =>
+		import('./pea-holding-form').then((mod) => ({
+			default: mod.PeaHoldingForm,
+		})),
+	{ ssr: false }
+)

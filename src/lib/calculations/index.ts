@@ -4,24 +4,27 @@
  */
 
 // Livret A calculations
-export { calculateInterest } from '@/features/livret-a/calculations'
+export {
+	calculateAnnualInterest,
+	calculateCurrentBalance,
+} from '@/features/livret-a/calculations'
 
 // PEA calculations
 export {
-	calculatePortfolioMetrics,
 	calculateHoldingPerformance,
+	calculatePortfolioMetrics,
 } from '@/features/pea/calculations'
 
 // PEE calculations
 export {
-	calculatePeeValue,
 	calculateContributionsByType,
+	calculatePeeValue,
 } from '@/features/pee/calculations'
 
 // Dashboard calculations
 export {
 	calculateChartDateRange,
-	generateWealthDataPoints,
 	calculateTotalReturn,
+	generateWealthDataPoints,
 	type AccountBalances,
 } from '@/features/dashboard/calculations'

@@ -1,5 +1,3 @@
-'use cache: private'
-
 import {
 	Card,
 	CardContent,
@@ -24,6 +22,9 @@ interface PeaPageProps {
 }
 
 async function PeaContent() {
+	'use cache: private'
+	cacheLife({ stale: 60 })
+
 	const t = await getTranslations('pea')
 	const userId = await requireAuthForPage()
 	const userPea = await getOrCreatePea(userId)
@@ -64,8 +65,6 @@ async function PeaContent() {
 }
 
 export default async function PeaPage({ params }: PeaPageProps) {
-	cacheLife({ stale: 60 })
-
 	const { locale } = await params
 	setRequestLocale(locale)
 

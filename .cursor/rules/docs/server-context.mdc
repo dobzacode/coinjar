@@ -332,7 +332,7 @@ export function calculateChartDateRange(
 **Centralized Exports**: `src/lib/calculations/index.ts`
 
 ```typescript
-export { calculateInterest } from '@/features/livret-a/calculations'
+export { calculateAnnualInterest,	calculateCurrentBalance, } from '@/features/livret-a/calculations'
 export { calculatePortfolioMetrics } from '@/features/pea/calculations'
 export { calculatePeeValue } from '@/features/pee/calculations'
 export { calculateChartDateRange, generateWealthDataPoints } from '@/features/dashboard/calculations'
