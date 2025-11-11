@@ -1,7 +1,7 @@
 'use server'
 
-import { auth } from '@/lib/auth'
-import { getCacheTag } from '@/lib/cache/tags'
+import { requireAuth } from '@/lib/auth/helpers'
+import { invalidateFeatureCache } from '@/lib/cache/helpers'
 import { db } from '@/lib/db'
 import {
 	livretA,
@@ -9,24 +9,10 @@ import {
 	livretATransactions,
 } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { revalidatePath, updateTag } from 'next/cache'
-import { headers } from 'next/headers'
 import type { LivretARateInput, LivretATransactionInput } from './schema'
 
-async function getCurrentUser() {
-	const session = await auth.api.getSession({
-		headers: await headers(),
-	})
-
-	if (!session?.user?.id) {
-		throw new Error('Non authentifié')
-	}
-
-	return session.user.id
-}
-
 export async function addTransaction(data: LivretATransactionInput) {
-	const userId = await getCurrentUser()
+	const userId = await requireAuth()
 
 	const userLivret = await db.query.livretA.findFirst({
 		where: eq(livretA.userId, userId),
@@ -65,17 +51,13 @@ export async function addTransaction(data: LivretATransactionInput) {
 		})
 		.where(eq(livretA.id, userLivret.id))
 
-	updateTag(getCacheTag.livretA(userId))
-	updateTag(getCacheTag.dashboard(userId))
-
-	revalidatePath('/dashboard', 'page')
-	revalidatePath('/dashboard/livret-a', 'page')
+	await invalidateFeatureCache(userId, 'livret-a')
 
 	return { success: true }
 }
 
 export async function updateRate(data: LivretARateInput) {
-	const userId = await getCurrentUser()
+	const userId = await requireAuth()
 
 	const userLivret = await db.query.livretA.findFirst({
 		where: eq(livretA.userId, userId),
@@ -98,10 +80,7 @@ export async function updateRate(data: LivretARateInput) {
 		effectiveDate: new Date().toISOString().split('T')[0],
 	})
 
-	updateTag(getCacheTag.livretA(userId))
-	updateTag(getCacheTag.dashboard(userId))
-	revalidatePath('/dashboard', 'page')
-	revalidatePath('/dashboard/livret-a', 'page')
+	await invalidateFeatureCache(userId, 'livret-a')
 
 	return { success: true }
 }

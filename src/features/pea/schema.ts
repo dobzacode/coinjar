@@ -1,25 +1,17 @@
 import type { TranslationFn } from '@/types'
+import {
+	dateSchema,
+	positiveNumberSchema,
+} from '@/lib/validation/common-schemas'
 import { z } from 'zod'
 
 export function createPeaHoldingSchema(t: TranslationFn) {
 	return z.object({
 		isin: z.string().length(12, t('isinLength')),
 		name: z.string().min(1, t('nameRequired')),
-		shares: z.union([z.string(), z.number()]).pipe(
-			z.coerce
-				.number<string>({
-					message: t('sharesMustBeNumber'),
-				})
-				.positive(t('sharesPositive'))
-		),
-		purchasePrice: z.union([z.string(), z.number()]).pipe(
-			z.coerce
-				.number<string>({
-					message: t('purchasePriceMustBeNumber'),
-				})
-				.positive(t('purchasePricePositive'))
-		),
-		purchaseDate: z.string().min(1, t('purchaseDateRequired')),
+		shares: positiveNumberSchema(t, 'shares'),
+		purchasePrice: positiveNumberSchema(t, 'purchasePrice'),
+		purchaseDate: dateSchema(t),
 	})
 }
 

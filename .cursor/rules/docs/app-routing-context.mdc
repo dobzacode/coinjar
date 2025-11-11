@@ -1,0 +1,241 @@
+---
+description: App Router patterns, locale-based routing, and layouts
+---
+
+# App Routing Context
+
+**Last updated: November 11, 2025**
+
+## Routing Architecture
+
+### Locale-Based Routing
+
+All routes are prefixed with locale: `/[locale]/...`
+
+**Supported Locales**: `en` (English), `fr` (French)
+
+**Structure**:
+```
+app/
+└── [locale]/
+    ├── (auth)/
+    │   ├── login/page.tsx
+    │   └── signup/page.tsx
+    └── dashboard/
+        ├── page.tsx
+        ├── livret-a/page.tsx
+        ├── pea/page.tsx
+        └── pee/page.tsx
+```
+
+**URL Examples**:
+- `/en/dashboard` - English dashboard
+- `/fr/dashboard/pea` - French PEA page
+- `/en/login` - English login
+
+### Layout Hierarchy
+
+**Root Layout** (`app/[locale]/layout.tsx`):
+- Server component
+- Wraps all pages with providers
+- Includes `next-intl` provider
+- Includes `next-themes` provider
+- Sets up Outfit font from Google Fonts
+
+**Dashboard Layout** (`app/[locale]/dashboard/layout.tsx`):
+- Server component with Suspense boundary
+- Contains sidebar navigation
+- Contains mobile navigation sheet
+- Includes user menu with sign-out
+- Auto-redirects to login if not authenticated
+
+**Auth Layout** (`app/[locale]/(auth)/layout.tsx`):
+- Simple centered layout for login/signup
+- No sidebar or navigation
+- Includes language picker in top-right
+
+### Protected Routes
+
+**Pattern**: All dashboard routes require authentication
+
+**Implementation**:
+```typescript
+// In page components
+const userId = await requireAuthForPage()
+```
+
+**How It Works**:
+1. `requireAuthForPage()` checks Better Auth session
+2. If no session → redirects to `/[locale]/login`
+3. If session exists → returns userId
+4. Uses Next.js `redirect()` for server-side redirect
+
+**Critical Files**:
+- `src/lib/auth/page-helpers.ts` - Contains `requireAuthForPage()`
+- All dashboard pages use this pattern
+
+### Route Segment Config
+
+**Dashboard Pages**:
+```typescript
+export const dynamic = 'force-dynamic'
+```
+Reason: Ensures fresh auth checks on every request
+
+**Feature Pages** (livret-a, pea, pee):
+Use caching but revalidate after mutations
+
+### Middleware
+
+**Location**: `src/middleware.ts`
+
+**Purpose**: Locale detection and routing
+
+**How It Works**:
+1. Detects user's preferred locale from Accept-Language header
+2. Redirects root `/` to `/[locale]/dashboard`
+3. Ensures all routes have locale prefix
+4. Uses `createMiddleware` from `next-intl/middleware`
+
+**Configuration**:
+```typescript
+export const config = {
+  matcher: ['/', '/(en|fr)/:path*']
+}
+```
+
+### Navigation Patterns
+
+**Server-Side Navigation**:
+```typescript
+import { redirect } from 'next/navigation'
+
+redirect(`/${locale}/dashboard`)
+```
+
+**Client-Side Navigation**:
+```typescript
+import { useRouter } from 'next/navigation'
+
+const router = useRouter()
+router.push(`/${locale}/dashboard`)
+router.refresh() // Refresh server components
+```
+
+**Locale-Aware Links**:
+```typescript
+import Link from 'next/link'
+import { useLocale } from 'next-intl'
+
+const locale = useLocale()
+<Link href={`/${locale}/dashboard/pea`}>PEA</Link>
+```
+
+### Mobile Navigation
+
+**Component**: `src/components/layout/mobile-nav.tsx`
+
+**Pattern**: Shadcn UI Sheet component
+- Opens from left side
+- Shows on mobile/tablet only (hidden lg:)
+- Contains same nav items as sidebar
+- Auto-closes after navigation
+- Includes close button (X)
+
+**Trigger**: Hamburger icon in header (visible only on mobile)
+
+### Language Picker
+
+**Pattern**: Dropdown with flag icons
+
+**Location**: Available on login and signup pages
+
+**Implementation**:
+- Positioned in top-right corner (absolute positioning)
+- Shows current locale flag
+- Dropdown with both language options
+- On selection: redirects to same page with new locale
+- Uses controlled dropdown state to prevent glitches
+- Must call `onSelect` handler to dismiss properly
+
+**Critical**: Always use `onSelect` event handler to dismiss dropdown after selection
+
+### Route Groups
+
+**`(auth)`**: Groups login and signup pages
+- Applies shared auth layout
+- No authentication required
+- Centered layout with language picker
+
+**`dashboard`**: All authenticated pages
+- Applies dashboard layout with sidebar
+- Requires authentication
+- Full app navigation
+
+### Loading States
+
+**Pattern**: Use `loading.tsx` files for Suspense fallbacks
+
+**Dashboard**: 
+- `app/[locale]/dashboard/loading.tsx`
+- Shows skeleton for overview cards and account cards
+
+**Feature Pages**:
+- Each feature has dedicated skeleton component
+- `LivretASkeleton`, `PeaSkeleton`, `PeeSkeleton`
+- Wrapped in Suspense boundaries
+
+### Error Boundaries
+
+**Pattern**: Use `error.tsx` files for error handling
+
+**Not Implemented Yet**: Currently relies on default Next.js error pages
+
+**Future**: Should add custom error boundaries for better UX
+
+### Revalidation After Mutations
+
+**Critical Pattern**:
+```typescript
+// In server actions
+await invalidateFeatureCache(userId, 'pea')
+
+// In client form onSuccess
+router.refresh() // Refresh server components
+```
+
+**Why Both**:
+- `revalidateTag`/`revalidatePath` - Server-side cache invalidation
+- `router.refresh()` - Client-side server component refresh
+- Without both, UI won't update immediately
+
+**Locale Awareness**: Path revalidation works across locale-prefixed routes
+
+### Sign-Out Flow
+
+**Pattern**:
+```typescript
+'use client'
+
+async function handleSignOut() {
+  await signOut()
+  router.refresh() // Clear client state
+  router.push(`/${locale}/login`)
+}
+```
+
+**Critical**: Must include `router.refresh()` to clear client-side auth state
+
+### Parallel Routes
+
+**Not Used**: This app doesn't use parallel routes or intercepting routes
+
+Keeps architecture simple with standard nested routing.
+
+## Common Pitfalls
+
+1. **Forgetting locale prefix**: Always include `/[locale]/` in paths
+2. **Missing router.refresh()**: After mutations, must call both server and client refresh
+3. **Hardcoding locale**: Never hardcode `/en/` or `/fr/` - use `useLocale()` hook
+4. **Auth in wrong place**: Use `requireAuthForPage()` in pages, `requireAuth()` in actions
+5. **Dropdown not dismissing**: Always use `onSelect` handler for controlled dropdowns

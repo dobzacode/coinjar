@@ -13,6 +13,14 @@ export interface ChartDataPoint {
 	label?: string
 }
 
+export interface WealthDataPoint {
+	date: string
+	total: number
+	livretA: number
+	pee: number
+	pea: number
+}
+
 export type TranslationFn = (
 	key: string,
 	values?: Record<string, string | number>

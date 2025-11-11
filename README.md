@@ -6,7 +6,10 @@ A modern, full-stack web application for tracking and managing your French savin
 
 ### ✨ Core Functionality
 
-- **Dashboard with Analytics**: Visual wealth evolution tracking with interactive charts
+- **Smart Dashboard**: Visual wealth evolution tracking with intelligent chart generation
+  - Chart starts from user signup date or first transaction (whichever is later)
+  - Dynamic data points based on account age (2-12 months displayed)
+  - No historical data shown from before user joined
 - **Livret A Management**: Track your regulated savings account with transaction history
 - **PEA Portfolio**: Manage your equity savings plan with real-time ISIN validation via Yahoo Finance
 - **PEE Tracking**: Monitor employee savings plans with contribution breakdowns
@@ -24,33 +27,73 @@ A modern, full-stack web application for tracking and managing your French savin
 - **Green Theme**: Strong brand identity with customizable green color palette
 - **Custom Typography**: Outfit font for modern, clean aesthetics
 - **Responsive Design**: Mobile-first approach with Tailwind CSS
-- **Mobile Navigation**: Sheet component for responsive mobile menu
+  - Tables automatically convert to card layouts on mobile devices
+  - Transaction lists, holdings, and contributions optimized for small screens
+  - Breakpoint-aware components (md/lg) for optimal viewing
+- **Mobile Navigation**: Sheet component with proper alignment and spacing
+- **Consistent Buttons**: Standardized button sizes across all pages
 - **Accessible**: WCAG compliant with proper ARIA labels and keyboard navigation
 
 ### 🔧 Technical Features
 
-- **Advanced Caching**: Next.js 16 `unstable_cache` with granular tag-based invalidation using `revalidateTag`
-- **Cache Management**: Centralized cache tags system with automatic revalidation on mutations
+#### Architecture & Code Quality
+
+- **DRY Principles**: Centralized authentication, cache management, and validation utilities
+- **SOLID Architecture**: Clear separation of concerns with focused, single-responsibility modules
+- **Service Layer Pattern**: Business logic abstraction for improved testability and maintainability
+- **Shared Utilities**: Reusable helpers for translations, styling, and form validation
+
+#### Performance & Caching
+
+- **Modern Caching**: Next.js 16 Cache Components with `"use cache"` directive for granular caching control
+- **Cache Tagging**: `cacheTag()` and `cacheLife()` APIs for flexible cache management and revalidation
+- **Immediate Invalidation**: `updateTag()` for read-your-own-writes semantics in server actions
+- **Cache Management**: Centralized cache helpers (`src/lib/cache/helpers.ts`) with automatic revalidation
 - **Locale-Aware Revalidation**: Cache invalidation works across all locale-prefixed routes (/en, /fr)
 - **Production-Ready Caching**: All mutations properly invalidate both specific and dashboard caches for instant updates
-- **Type-Safe Forms**: Zod validation with next-intl integration for internationalized error messages
-- **Number Input Fix**: Union type pattern with `.pipe()` for proper coercion of numeric form fields
-- **Server Actions**: Forms use server actions for secure, server-side data mutations with cache invalidation
-- **Server Components**: Optimized with React Server Components for better performance
-- **Authentication**: Google OAuth + Email/Password via Better Auth with bcrypt password hashing
+- **Service Layer Caching**: Consolidated dashboard data fetching eliminates triple-fetch anti-pattern
+
+#### Authentication & Security
+
+- **Centralized Auth**: Shared authentication utilities (`requireAuth`, `getCurrentUserId`, `redirectIfAuthenticated`)
+- **Auth Page Protection**: Logged-in users are automatically redirected from login/signup pages to dashboard
+- **Google OAuth + Email/Password**: Via Better Auth with bcrypt password hashing
 - **Signup Flow**: Complete registration flow with validation and internationalization
 - **Language Picker**: Language selection available on login and signup pages
 - **Proper Sign Out**: Authentication state properly cleared with client-side refresh and navigation
-- **Database**: Neon PostgreSQL with Drizzle ORM
-- **Charts**: Recharts integration with locale-aware date and currency formatting
-- **API Routes**: RESTful API with Next.js route handlers with proper security measures
-- **Optimistic Updates**: Fast UI with progressive enhancement and proper cache management
-- **Parallel Data Fetching**: Optimized API calls with Promise.all for better performance
 - **Security Hardening**: ISIN format validation, URL encoding, proper error handling
-- **Full i18n Coverage**: Complete translations for all pages (dashboard, livret-a, pea, pee, login, signup) in English and French
-- **Modular Components**: Feature components broken down for better separation of concerns and maintainability
-- **CI/CD Pipeline**: GitHub Actions workflow for automated testing, linting, and deployment to Vercel
+
+#### Forms & Validation
+
+- **Type-Safe Forms**: Zod validation with next-intl integration for internationalized error messages
+- **Common Schema Patterns**: Reusable validation utilities (`amountSchema`, `dateSchema`, `positiveNumberSchema`)
+- **Number Input Fix**: Union type pattern with `.pipe()` for proper coercion of numeric form fields
+- **Server Actions**: Forms use server actions for secure, server-side data mutations with cache invalidation
+
+#### Data & State Management
+
+- **Server Components**: Optimized with React Server Components for better performance
+- **Account Service Layer**: Abstracted CRUD operations with `getOrCreate` pattern
+- **Dashboard Service**: Single data-fetching service eliminates redundant queries
+- **Calculation Utilities**: Centralized business logic in `src/lib/calculations/`
+- **Database**: Neon PostgreSQL with Drizzle ORM
+- **Parallel Data Fetching**: Optimized API calls with Promise.all for better performance
+
+#### Internationalization & UI
+
+- **Full i18n Coverage**: Complete translations for all pages in English and French
+- **Type Translators**: Utility functions replace nested ternaries for cleaner code
+- **Styling Helpers**: Centralized color and prefix utilities for consistent UI
+- **Charts**: Recharts integration with locale-aware date and currency formatting
+- **Modular Components**: Feature components broken down for better separation of concerns
+
+#### Development & Testing
+
+- **Comprehensive Test Utilities**: Mock helpers for auth, database, and translations
+- **Unit Test Coverage**: All new utilities and services have dedicated test files
+- **CI/CD Pipeline**: GitHub Actions workflow for automated testing, linting, and deployment
 - **Git Hooks**: Husky pre-commit hooks with lint-staged for automated code quality checks
+- **API Routes**: RESTful API with Next.js route handlers with proper security measures
 
 ## 🛠️ Tech Stack
 
@@ -174,15 +217,34 @@ coinjar/
 │   │   └── animated-wrapper.tsx
 │   ├── features/              # Feature modules
 │   │   ├── dashboard/         # Dashboard feature
+│   │   │   ├── components/    # Dashboard components
+│   │   │   ├── calculations.ts # Chart & metrics calculations
+│   │   │   ├── services.ts    # Data fetching service
+│   │   │   └── queries.ts     # Database queries
 │   │   ├── livret-a/          # Livret A feature
 │   │   ├── pea/               # PEA feature
 │   │   └── pee/               # PEE feature
-│   ├── lib/                   # Utilities
-│   │   ├── auth/              # Authentication
-│   │   ├── db/                # Database
-│   │   ├── zod-i18n.ts        # Zod i18n helper
-│   │   └── utils.ts           # Utility functions
-│   ├── i18n/                  # Internationalization
+│   ├── lib/                   # Shared utilities
+│   │   ├── auth/              # Authentication utilities
+│   │   │   ├── helpers.ts     # Auth helpers (requireAuth, getCurrentUserId)
+│   │   │   ├── page-helpers.ts # Page auth utilities
+│   │   │   └── index.ts       # Better Auth config
+│   │   ├── cache/             # Cache management
+│   │   │   ├── tags.ts        # Cache tag definitions
+│   │   │   └── helpers.ts     # Cache invalidation helpers
+│   │   ├── calculations/      # Business logic
+│   │   │   └── index.ts       # Centralized calculation exports
+│   │   ├── i18n/              # Internationalization utilities
+│   │   │   └── type-translators.ts # Type translation helpers
+│   │   ├── services/          # Service layer
+│   │   │   └── account-service.ts # Account CRUD operations
+│   │   ├── validation/        # Form validation
+│   │   │   └── common-schemas.ts # Reusable Zod schemas
+│   │   ├── utils/             # General utilities
+│   │   │   ├── styling.ts     # UI styling helpers
+│   │   │   └── utils.ts       # General helpers
+│   │   └── db/                # Database
+│   ├── i18n/                  # Internationalization config
 │   └── types/                 # TypeScript types
 ├── messages/                   # Translation files
 │   ├── en.json
@@ -190,7 +252,13 @@ coinjar/
 ├── tests/                      # Test files
 │   ├── e2e/                   # E2E tests
 │   ├── component/             # Component tests
-│   └── unit/                  # Unit tests
+│   ├── unit/                  # Unit tests
+│   │   ├── auth-helpers.test.ts
+│   │   ├── cache-helpers.test.ts
+│   │   ├── type-translators.test.ts
+│   │   └── styling-helpers.test.ts
+│   └── utils/                 # Test utilities
+│       └── test-helpers.ts    # Mock helpers
 └── public/                    # Static assets
 ```
 
@@ -254,61 +322,22 @@ The application features a strong green-themed design system with:
 
 Edit `src/app/globals.css` to customize the theme.
 
-## 📊 Features Deep Dive
-
-### Production-Ready Enhancements
-
-Recent improvements for production deployment:
-
-**Cache Invalidation**:
-
-- All mutations (Livret A transactions, PEA holdings, PEE contributions) properly invalidate dashboard cache
-- Client-side cache refresh (`router.refresh()`) added to all form submissions for instant UI updates
-- Server-side cache invalidation using `revalidateTag` and `revalidatePath` for comprehensive coverage
-- Corrected revalidation API syntax for Next.js 16 compatibility
-
-**Authentication Flow**:
-
-- Sign out now properly redirects to login page and refreshes authentication state
-- Uses locale-aware router for seamless experience across languages
-
-**Internationalization**:
-
-- Chart date and currency formatting now respects selected locale (English/French)
-- Wealth evolution chart displays months in correct language
-- All UI elements fully translated
-
-**Component Architecture**:
-
-- Large page components refactored into smaller, focused components:
-  - `PeaMetricsCards`: Displays PEA portfolio metrics
-  - `PeaHoldingsTable`: Reusable holdings table component
-  - `PeeMetricsCards`: PEE account summary cards
-  - `PeeContributionBreakdown`: Contribution type breakdown
-  - `PeeContributionList`: Recent contributions display
-- Better separation of concerns and code reusability
-- Easier testing and maintenance
-
-**UI Consistency**:
-
-- Standardized spacing across all pages (`space-y-sm`)
-- Language picker properly dismisses after selection using `onSelect` event handler
-- Controlled dropdown state prevents UI glitches and duplicate rendering issues
-
 ### Advanced Caching System
 
-The application implements Next.js 16's latest caching best practices:
+The application implements Next.js 16's Cache Components feature with the `"use cache"` directive:
 
 **Data Layer Caching**:
 
-- All database queries use `unstable_cache` with proper cache keys and tags
+- All database queries use `"use cache"` directive for explicit caching control
+- `cacheTag()` for on-demand cache invalidation with user-scoped tags
+- `cacheLife()` for configurable cache expiration (using named profiles like `'hours'` or custom durations)
 - Consistent caching strategy across all features (dashboard, livret-a, pea, pee)
 - Centralized cache tag management in `src/lib/cache/tags.ts`
 - Each business entity has dedicated cache tags per user for granular control
 
 **Cache Invalidation**:
 
-- Server actions use `revalidateTag` for granular cache invalidation
+- Server actions use `updateTag()` for immediate cache invalidation (read-your-own-writes)
 - Client components call `router.refresh()` after mutations for immediate UI updates
 - Dashboard cache automatically invalidated when any account is modified
 - Locale-aware path revalidation works across all locale routes (/en, /fr)
@@ -318,22 +347,33 @@ The application implements Next.js 16's latest caching best practices:
 
 ```typescript
 // Example: PEA data with 1-hour cache
-const getCachedPea = unstable_cache(
-	async () => fetchPeaData(userId),
-	['pea', userId],
-	{
-		tags: [getCacheTag.pea(userId)],
-		revalidate: 3600, // 1 hour
-	}
-)
+export async function getPeaAccountByUserId(userId: string) {
+	'use cache'
+	cacheTag(getCacheTag.pea(userId))
+	cacheLife('hours')
+
+	return db.query.peaAccounts.findFirst({
+		where: eq(peaAccounts.userId, userId),
+		with: { holdings: true },
+	})
+}
+
+// Cache invalidation in server actions
+export async function addHolding(data: PeaHoldingInput) {
+	'use server'
+	const userId = await requireAuth()
+	// ... mutation logic ...
+	updateTag(getCacheTag.pea(userId))
+}
 ```
 
 This ensures:
 
 - No unnecessary refetching on every page visit
-- Instant updates after mutations
+- Instant updates after mutations with read-your-own-writes semantics
 - Reduced database load
 - Better performance and user experience
+- Explicit caching boundaries for better control
 
 ### Skeleton Loading States
 

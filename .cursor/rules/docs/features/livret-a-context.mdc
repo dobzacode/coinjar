@@ -1,0 +1,427 @@
+---
+description: Livret A business rules, transactions, and interest calculation
+---
+
+# Livret A Context
+
+**Last updated: November 11, 2025**
+
+## Business Overview
+
+**What is Livret A**: French regulated savings account with tax-free interest
+
+**Key Characteristics**:
+- Government-regulated interest rate
+- Tax-free gains
+- No fees
+- Instant liquidity (can withdraw anytime)
+- Maximum balance cap (not enforced in app)
+
+## Account Structure
+
+**Database Table**: `livret_a`
+
+**Fields**:
+- `balance`: Current account balance (decimal, euros)
+- `currentRate`: Annual interest rate (decimal, percentage)
+
+**Default Values**:
+- Initial balance: 0.00€
+- Default rate: 3.00% (France's current Livret A rate)
+
+**Account Creation**: Lazy (created on first page visit using `getOrCreateLivretA()`)
+
+## Transaction Types
+
+### Deposit
+
+**Type**: `'deposit'`
+
+**Meaning**: Money added to account
+
+**Effect**: Increases balance
+
+**Display**:
+- Color: Green (`text-green-600`)
+- Prefix: `+`
+- Example: `+500.00 €`
+
+**Validation**:
+- Amount must be positive
+- Date required
+- Description optional
+
+### Withdrawal
+
+**Type**: `'withdrawal'`
+
+**Meaning**: Money removed from account
+
+**Effect**: Decreases balance
+
+**Display**:
+- Color: Red (`text-red-600`)
+- Prefix: `-`
+- Example: `-200.00 €`
+
+**Validation**:
+- Amount must be positive
+- Cannot exceed current balance (not enforced, but should be)
+- Date required
+- Description optional
+
+### Interest
+
+**Type**: `'interest'`
+
+**Meaning**: Annual interest credit
+
+**Effect**: Increases balance
+
+**Display**:
+- Color: Green (`text-green-600`)
+- Prefix: `+`
+- Example: `+45.50 €`
+
+**Creation**: Automated via cron job (January 1st)
+
+**Calculation**: `balance * (rate / 100)`
+
+## Business Rules
+
+### Balance Calculation
+
+**Formula**: Sum of all transactions
+
+```typescript
+balance = deposits - withdrawals + interest
+```
+
+**Implementation**: Calculated incrementally (previous balance + transaction amount)
+
+**Storage**: Balance stored in `livret_a` table (updated on each transaction)
+
+### Interest Calculation
+
+**Frequency**: Annual (credited January 1st)
+
+**Formula**: `balance * (currentRate / 100)`
+
+**Example**: 
+- Balance: 10,000€
+- Rate: 3.00%
+- Interest: 10,000 * 0.03 = 300€
+
+**Process**:
+1. Cron job runs January 1st at midnight
+2. Fetches all Livret A accounts
+3. For each account:
+   - Calculate interest
+   - Create interest transaction
+   - Update account balance
+4. Invalidate all user caches
+
+**Location**: `/api/cron/livret-a-interest`
+
+### Rate Updates
+
+**Who**: User can update rate manually
+
+**Why**: Rate changes infrequently (government-controlled)
+
+**Effect**: Only affects future interest calculations (not retroactive)
+
+**Typical Rates**: 0.5% to 3.0% (historically)
+
+## User Workflows
+
+### Add Deposit
+
+1. User clicks "Add Transaction"
+2. Dialog opens with form
+3. User selects "Deposit" type
+4. Enters amount and date
+5. Optionally adds description
+6. Submits form
+7. Server action:
+   - Creates transaction record
+   - Updates account balance (balance + amount)
+   - Invalidates Livret A and dashboard caches
+8. Dialog closes, success toast
+9. Transaction appears in list
+
+### Add Withdrawal
+
+1. User clicks "Add Transaction"
+2. Dialog opens with form
+3. User selects "Withdrawal" type
+4. Enters amount and date
+5. Optionally adds description
+6. Submits form
+7. Server action:
+   - Creates transaction record
+   - Updates account balance (balance - amount)
+   - Invalidates Livret A and dashboard caches
+8. Dialog closes, success toast
+9. Transaction appears in list
+
+### Update Interest Rate
+
+1. User clicks "Update Rate"
+2. Dialog opens with form
+3. User enters new rate (percentage)
+4. Submits form
+5. Server action:
+   - Updates `currentRate` field
+   - Invalidates Livret A and dashboard caches
+6. Dialog closes, success toast
+7. New rate displayed in UI
+
+**Note**: Does not recalculate past interest
+
+## Data Constraints
+
+### Amount Validation
+
+**Schema**:
+```typescript
+amount: amountSchema(t)
+// Accepts string or number, coerces to positive number
+```
+
+**Rules**:
+- Must be a number
+- Must be positive
+- No maximum (in practice, keep reasonable)
+
+### Date Validation
+
+**Schema**:
+```typescript
+date: dateSchema(t)
+// Must be valid date string (YYYY-MM-DD)
+```
+
+**Rules**:
+- Required
+- Must be valid date
+- No future dates (not enforced, but recommended)
+- Typically transaction date
+
+### Description Validation
+
+**Schema**:
+```typescript
+description: z.string().optional()
+```
+
+**Rules**:
+- Optional (can be empty)
+- Free text
+- No length limit (reasonable limit recommended)
+
+### Rate Validation
+
+**Schema**:
+```typescript
+rate: percentageSchema(t, 100)
+// Percentage between 0 and 100
+```
+
+**Rules**:
+- Must be number
+- Must be between 0 and 100
+- Typically between 0.5 and 3.0 for Livret A
+
+## UI Components
+
+### Page Location
+
+`src/app/[locale]/dashboard/livret-a/page.tsx`
+
+### Main Components
+
+**LivretAContent** (`src/features/livret-a/components/livret-a-content.tsx`):
+- Main container for Livret A page
+- Shows balance and rate
+- Shows transaction list
+- Contains action buttons
+
+**TransactionList** (`src/features/livret-a/components/transaction-list.tsx`):
+- Displays transaction history
+- Desktop: Table view
+- Mobile: Card view (< md breakpoint)
+- Sorted by date (newest first)
+
+**AddTransactionDialog**:
+- Form for adding deposits/withdrawals
+- Type selector (radio buttons)
+- Amount input (number)
+- Date input (date picker)
+- Description input (optional text)
+
+**UpdateRateDialog**:
+- Form for updating interest rate
+- Rate input (number, percentage)
+
+### Skeleton Loading
+
+**LivretASkeleton**: Displayed while page loads
+
+**Structure**:
+- Skeleton for header/balance card
+- Skeleton for transaction table
+
+**Usage**: Wrapped in Suspense boundary
+
+## Calculations
+
+### Location
+
+`src/features/livret-a/calculations.ts`
+
+### Functions
+
+**calculateInterest**:
+```typescript
+export function calculateInterest(
+  balance: number,
+  rate: number
+): number {
+  return balance * (rate / 100)
+}
+```
+
+**Used By**: Cron job for annual interest calculation
+
+## Cache Management
+
+### Cache Tags
+
+**Tag**: `livret-a-${userId}`
+
+**Includes**:
+- Livret A account data
+- Transaction history
+
+### Invalidation
+
+**When**:
+- After adding transaction
+- After updating rate
+
+**How**:
+```typescript
+await invalidateFeatureCache(userId, 'livret-a')
+// Also invalidates dashboard cache
+```
+
+**Client-Side**:
+```typescript
+router.refresh() // Refresh server components
+```
+
+## Testing
+
+### Unit Tests
+
+**Location**: `tests/unit/livret-a-calculations.test.ts`
+
+**Tests**:
+- Interest calculation
+- Balance calculation
+
+### Component Tests
+
+**Location**: `tests/component/livret-a-*.test.ts`
+
+**Tests**:
+- Transaction list rendering
+- Form validation
+- Dialog behavior
+
+### E2E Tests
+
+**Location**: `tests/e2e/livret-a.spec.ts`
+
+**Tests**:
+- Add deposit flow
+- Add withdrawal flow
+- Update rate flow
+- Transaction display
+
+## Common Scenarios
+
+### First-Time User
+
+1. User navigates to Livret A page
+2. Account doesn't exist yet
+3. `getOrCreateLivretA()` creates account with default values
+4. Page displays balance: 0.00€, rate: 3.00%
+5. No transactions yet
+
+### Adding First Deposit
+
+1. Balance: 0.00€
+2. User adds deposit: 1,000€
+3. New balance: 1,000€
+4. Transaction appears in list
+
+### Annual Interest
+
+1. Date: December 31st, balance: 10,000€, rate: 3.00%
+2. Cron job runs January 1st at midnight
+3. Interest calculated: 300€
+4. Interest transaction created automatically
+5. New balance: 10,300€
+6. User sees interest transaction in history
+
+### Rate Change
+
+1. Government changes Livret A rate (e.g., 3.00% → 3.50%)
+2. User updates rate in app
+3. New rate: 3.50%
+4. Next year's interest calculated with new rate
+5. Past interest unchanged
+
+## Future Enhancements
+
+1. **Balance Validation**: Prevent withdrawals exceeding balance
+2. **Transaction Editing**: Allow editing/deleting transactions
+3. **Transaction Categories**: Add optional categories for deposits/withdrawals
+4. **Monthly Interest**: Support monthly interest calculation (some accounts)
+5. **Export**: Export transactions to CSV/PDF
+6. **Charts**: Historical balance chart
+7. **Projections**: Calculate future balance based on planned deposits/withdrawals
+
+## Troubleshooting
+
+### Balance Mismatch
+
+**Problem**: Displayed balance doesn't match transaction sum
+
+**Solutions**:
+1. Check for failed transaction inserts
+2. Verify balance updates in database
+3. Recalculate balance from transaction history
+4. Check for concurrent modifications
+
+### Rate Not Updating
+
+**Problem**: New rate not reflected in UI
+
+**Solutions**:
+1. Clear cache (invalidate Livret A cache)
+2. Refresh page (router.refresh())
+3. Check database for updated rate
+4. Verify rate update action completed
+
+### Missing Transactions
+
+**Problem**: Transactions not appearing in list
+
+**Solutions**:
+1. Check transaction limit (currently showing last 100)
+2. Verify transaction inserted in database
+3. Clear cache and refresh
+4. Check transaction date ordering

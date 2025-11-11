@@ -1,0 +1,446 @@
+---
+description: Deployment configuration, environment variables, and CI/CD
+---
+
+# Deployment Context
+
+**Last updated: November 11, 2025**
+
+## Platform
+
+**Recommended**: Vercel (optimized for Next.js)
+
+**Current Deployment**: Vercel
+
+**Why Vercel**:
+- Zero-config Next.js deployment
+- Automatic builds on push
+- Edge network for global performance
+- Built-in CI/CD
+- Cron job support
+- Environment variable management
+
+## Environment Variables
+
+### Required Variables
+
+**Database**:
+```bash
+DATABASE_URL=postgresql://user:password@host/database
+```
+
+**Authentication**:
+```bash
+BETTER_AUTH_SECRET=      # Random 32+ character string
+BETTER_AUTH_URL=         # Production: https://yourdomain.com
+                         # Development: http://localhost:3000
+```
+
+**OAuth**:
+```bash
+GOOGLE_CLIENT_ID=        # From Google Cloud Console
+GOOGLE_CLIENT_SECRET=    # From Google Cloud Console
+```
+
+### Setting Variables
+
+**Vercel Dashboard**:
+1. Project Settings → Environment Variables
+2. Add each variable
+3. Select environments (Production, Preview, Development)
+4. Save and redeploy
+
+**Local Development**:
+```bash
+# Create .env.local file
+cp .env.example .env.local
+
+# Add your values
+DATABASE_URL=...
+BETTER_AUTH_SECRET=...
+```
+
+**Never**:
+- Commit `.env.local` to git (already in .gitignore)
+- Expose secrets in client code
+- Use same secrets for production and development
+
+## Build Configuration
+
+### Next.js Config
+
+**Location**: `next.config.mjs`
+
+**Critical Settings**:
+```javascript
+export default {
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '2mb' // Allow larger form submissions
+    }
+  },
+  images: {
+    domains: [] // Add external image domains if needed
+  }
+}
+```
+
+### Build Commands
+
+**Development**:
+```bash
+pnpm dev          # Start dev server (port 3000)
+```
+
+**Production Build**:
+```bash
+pnpm build        # Build for production
+pnpm start        # Start production server
+```
+
+**Linting**:
+```bash
+pnpm lint         # Run ESLint
+```
+
+**Testing**:
+```bash
+pnpm test         # Run unit tests (Vitest)
+pnpm test:e2e     # Run E2E tests (Playwright)
+```
+
+### Vercel Configuration
+
+**Location**: `vercel.json` (optional, most config in dashboard)
+
+**Build Settings**:
+- Framework Preset: Next.js
+- Build Command: `pnpm build`
+- Output Directory: `.next`
+- Install Command: `pnpm install`
+- Node Version: 20.x
+
+## Cron Jobs
+
+### Configuration
+
+**Location**: Vercel dashboard or `vercel.json`
+
+**Livret A Interest**:
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/livret-a-interest",
+      "schedule": "0 0 1 1 *"
+    }
+  ]
+}
+```
+- Schedule: January 1st at midnight (UTC)
+- Purpose: Calculate and credit annual interest
+
+**PEA Price Updates**:
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/update-etf-prices",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
+```
+- Schedule: Daily at 2 AM (UTC)
+- Purpose: Update ETF/stock prices
+
+**Cron Format**: `minute hour day month dayOfWeek`
+
+### Testing Cron Jobs
+
+**Local Testing**:
+```bash
+curl http://localhost:3000/api/cron/livret-a-interest
+curl http://localhost:3000/api/cron/update-etf-prices
+```
+
+**Production Testing**: Use Vercel dashboard cron logs
+
+## CI/CD Pipeline
+
+### GitHub Actions
+
+**Location**: `.github/workflows/ci-cd.yml`
+
+**Triggers**:
+- Push to `main` or `develop` branches
+- Pull requests to `main`
+
+**Jobs**:
+
+**1. Lint**:
+```yaml
+- name: Lint
+  run: pnpm lint
+  continue-on-error: true
+```
+
+**2. Unit Tests**:
+```yaml
+- name: Unit Tests
+  run: pnpm test
+  continue-on-error: true
+```
+
+**3. E2E Tests**:
+```yaml
+- name: Install Playwright
+  run: pnpm exec playwright install --with-deps
+
+- name: E2E Tests
+  run: pnpm test:e2e
+  continue-on-error: true
+
+- name: Upload test report
+  uses: actions/upload-artifact@v3
+  if: always()
+  with:
+    name: playwright-report
+    retention-days: 30
+```
+
+**4. Deploy**:
+```yaml
+- name: Deploy to Vercel
+  if: github.ref == 'refs/heads/main'
+  run: vercel deploy --prod
+```
+
+**Why continue-on-error**: Tests don't block deployment (fix issues after deploy)
+
+### Pre-Commit Hooks
+
+**Library**: Husky + lint-staged
+
+**Location**: `.husky/pre-commit`
+
+**Runs On**: Every commit (before commit is created)
+
+**Checks**:
+1. ESLint with auto-fix on TypeScript files
+2. Prettier formatting on all files
+3. Unit tests (with `--passWithNoTests`)
+
+**Configuration**: `.lintstagedrc`
+
+```json
+{
+  "*.{js,jsx,ts,tsx}": ["eslint --fix"],
+  "*": ["prettier --write"],
+  "*.{js,jsx,ts,tsx}": ["vitest related --run --passWithNoTests"]
+}
+```
+
+**Manual Trigger**:
+```bash
+pnpm precommit
+```
+
+## Database
+
+### Provider
+
+**Neon**: Serverless PostgreSQL
+
+**Region**: Choose closest to users
+
+**Connection**: HTTP (for serverless functions)
+
+### Backups
+
+**Neon Automatic Backups**: Daily backups (retained based on plan)
+
+**Manual Backups**: Use Neon dashboard
+
+**Future**: Implement automated backup script
+
+### Migrations
+
+**Current**: Schema push with `pnpm db:push`
+
+**Future**: Implement proper migrations with drizzle-kit
+
+**Production Updates**:
+1. Test schema changes locally
+2. Push to staging environment
+3. Backup production database
+4. Run `pnpm db:push` in production
+5. Verify changes
+
+**Critical**: Always backup before schema changes
+
+## Performance Monitoring
+
+### Web Vitals
+
+**Monitored Metrics**:
+- **LCP** (Largest Contentful Paint): < 2.5s
+- **FID** (First Input Delay): < 100ms
+- **CLS** (Cumulative Layout Shift): < 0.1
+
+**Monitoring**: Vercel Analytics (if enabled)
+
+### Database Performance
+
+**Neon Dashboard**: Query performance, connection pool usage
+
+**Optimization**:
+- Use connection pooling
+- Add indexes for frequently queried fields
+- Monitor slow queries
+
+## Error Tracking
+
+**Current**: Console logs and Vercel function logs
+
+**Future**: Integrate error tracking service (e.g., Sentry)
+
+## Deployment Workflow
+
+### Development
+
+1. Create feature branch
+2. Make changes
+3. Pre-commit hooks run automatically
+4. Commit and push
+5. GitHub Actions runs CI pipeline
+6. Create pull request
+7. Review and merge
+
+### Production
+
+1. Merge to `main` branch
+2. GitHub Actions runs full test suite
+3. Automatic deployment to Vercel
+4. Vercel builds and deploys
+5. New version live within minutes
+
+### Rollback
+
+**Vercel Dashboard**:
+1. Go to Deployments
+2. Find previous successful deployment
+3. Click "Promote to Production"
+4. Previous version restored immediately
+
+## Environment-Specific Behavior
+
+### Development
+- Uses `.env.local` file
+- Detailed error messages
+- Source maps enabled
+- Hot reload enabled
+
+### Production
+- Uses Vercel environment variables
+- Generic error messages (no stack traces to client)
+- Optimized bundles
+- Minified code
+
+## Secrets Management
+
+### GitHub Secrets
+
+**Required for CI/CD**:
+- `VERCEL_TOKEN` - Vercel API token for deployments
+- `VERCEL_ORG_ID` - Organization ID (optional)
+- `VERCEL_PROJECT_ID` - Project ID (optional)
+
+**Setting Up**:
+1. GitHub repo → Settings → Secrets
+2. Add each secret
+3. Update workflow to use secrets
+
+### Vercel Secrets
+
+**All environment variables** are encrypted and secure in Vercel
+
+**Access Control**: Only team members with proper permissions can view
+
+## Domain Configuration
+
+### Custom Domain
+
+**Setup in Vercel**:
+1. Project Settings → Domains
+2. Add custom domain
+3. Configure DNS records (A/CNAME)
+4. Wait for SSL certificate provisioning
+5. Domain active within minutes
+
+### SSL/HTTPS
+
+**Automatic**: Vercel provides free SSL certificates (Let's Encrypt)
+
+**Renewal**: Automatic (no maintenance required)
+
+**Enforcement**: Redirect HTTP to HTTPS (automatic)
+
+## Troubleshooting
+
+### Build Failures
+
+**Check**:
+1. Vercel build logs
+2. Environment variables set correctly
+3. Dependencies installed
+4. TypeScript errors
+5. Lint errors
+
+### Runtime Errors
+
+**Check**:
+1. Vercel function logs
+2. Database connection
+3. Environment variables in production
+4. API rate limits
+5. External service availability
+
+### Slow Performance
+
+**Check**:
+1. Database query performance
+2. Large bundle size
+3. Unoptimized images
+4. Missing caching headers
+5. Slow external API calls
+
+## Maintenance
+
+### Regular Tasks
+
+**Weekly**:
+- Review error logs
+- Check cron job execution
+- Monitor database performance
+
+**Monthly**:
+- Update dependencies (`pnpm update`)
+- Review and rotate secrets if needed
+- Check for security vulnerabilities
+
+**Quarterly**:
+- Review and optimize bundle size
+- Audit database indexes
+- Review backup strategy
+
+## Future Improvements
+
+1. Implement proper database migrations
+2. Add error tracking (Sentry)
+3. Set up staging environment
+4. Implement automated database backups
+5. Add performance monitoring
+6. Set up alerting for critical errors
+7. Implement feature flags
+8. Add A/B testing capabilities

@@ -1,0 +1,514 @@
+---
+description: Tailwind configuration, design system, and styling utilities
+---
+
+# Styling Context
+
+**Last updated: November 11, 2025**
+
+## Design System
+
+### Color Palette
+
+**Primary Green Theme**:
+```css
+Light mode:
+- Primary: hsl(142, 76%, 36%)
+- Secondary: hsl(142, 30%, 90%)
+- Accent: hsl(142, 40%, 85%)
+
+Dark mode:
+- Primary: hsl(142, 76%, 45%)
+- Background: hsl(142, 40%, 5%)
+- Card: hsl(142, 35%, 8%)
+```
+
+**Semantic Colors**:
+```css
+Success: green (deposits, positive gains)
+Destructive: red (withdrawals, losses)
+Muted: gray (secondary text)
+```
+
+### Typography
+
+**Font**: Outfit (Google Fonts)
+
+**Scale**:
+```css
+xs: 0.75rem (12px)
+sm: 0.875rem (14px)
+base: 1rem (16px)
+lg: 1.125rem (18px)
+xl: 1.25rem (20px)
+2xl: 1.5rem (24px)
+3xl: 1.875rem (30px)
+4xl: 2.25rem (36px)
+```
+
+**Usage**:
+- Page titles: `text-3xl font-bold`
+- Card headers: `text-lg font-semibold`
+- Body text: `text-base`
+- Secondary text: `text-sm text-muted-foreground`
+
+### Spacing System
+
+**Custom Spacing Tokens**:
+```css
+xs: 0.5rem (8px)
+sm: 0.75rem (12px)
+md: 1rem (16px)
+lg: 1.5rem (24px)
+xl: 2rem (32px)
+2xl: 3rem (48px)
+3xl: 4rem (64px)
+4xl: 6rem (96px)
+```
+
+**Consistent Page Spacing**: Use `space-y-sm` for vertical stacks
+
+```typescript
+<div className="space-y-sm">
+  <Header />
+  <Content />
+  <Footer />
+</div>
+```
+
+**Why**: Standardized across all pages (was inconsistent with `space-y-md`)
+
+### Border Radius
+
+```css
+xs: 0.25rem
+sm: 0.375rem
+md: 0.5rem
+lg: 0.75rem
+xl: 1rem
+```
+
+**Component Defaults**:
+- Cards: `rounded-lg`
+- Buttons: `rounded-md`
+- Inputs: `rounded-md`
+- Dialogs: `rounded-lg`
+
+## Tailwind Configuration
+
+**Location**: `tailwind.config.ts`
+
+**Custom Utilities**:
+```typescript
+theme: {
+  extend: {
+    spacing: {
+      xs: '0.5rem',
+      sm: '0.75rem',
+      md: '1rem',
+      lg: '1.5rem',
+      xl: '2rem',
+      '2xl': '3rem',
+      '3xl': '4rem',
+      '4xl': '6rem'
+    },
+    borderRadius: {
+      xs: '0.25rem',
+      sm: '0.375rem',
+      md: '0.5rem',
+      lg: '0.75rem',
+      xl: '1rem'
+    }
+  }
+}
+```
+
+**Dark Mode**: Class-based (toggle via next-themes)
+
+## Shadcn UI Components
+
+### Component Library
+
+**Provider**: Shadcn UI (Radix UI primitives)
+
+**Location**: `src/components/ui/`
+
+**Customization**: All components support custom className
+
+### Common Components
+
+**Button**:
+```typescript
+<Button variant="default" size="default">
+  Click me
+</Button>
+```
+
+**Variants**: `default`, `destructive`, `outline`, `ghost`, `link`
+
+**Sizes**: `default`, `sm`, `lg`, `icon`
+
+**Critical**: Use consistent sizes (no size variations across pages)
+
+**Card**:
+```typescript
+<Card>
+  <CardHeader>
+    <CardTitle>Title</CardTitle>
+    <CardDescription>Description</CardDescription>
+  </CardHeader>
+  <CardContent>
+    Content
+  </CardContent>
+</Card>
+```
+
+**Dialog**:
+```typescript
+<Dialog open={open} onOpenChange={setOpen}>
+  <DialogTrigger>Open</DialogTrigger>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Title</DialogTitle>
+    </DialogHeader>
+    Content
+  </DialogContent>
+</Dialog>
+```
+
+**Table**:
+```typescript
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Column</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>Data</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+```
+
+## Responsive Design
+
+### Breakpoints
+
+```css
+sm: 640px
+md: 768px
+lg: 1024px
+xl: 1280px
+2xl: 1536px
+```
+
+**Mobile-First Approach**: Default styles for mobile, progressively enhance
+
+### Mobile Card Pattern
+
+**Pattern**: Replace tables with cards on mobile
+
+```typescript
+{/* Desktop table */}
+<div className="hidden md:block">
+  <Table>...</Table>
+</div>
+
+{/* Mobile cards */}
+<div className="md:hidden space-y-sm">
+  {items.map(item => (
+    <Card key={item.id}>
+      <CardContent className="p-sm">
+        {/* Card content */}
+      </CardContent>
+    </Card>
+  ))}
+</div>
+```
+
+**Breakpoints by Feature**:
+- Livret A transactions: `md` breakpoint (768px)
+- PEA holdings: `lg` breakpoint (1024px)
+- PEE contributions: `md` breakpoint (768px)
+
+**Why Different Breakpoints**: Based on data complexity and column count
+
+### Responsive Navigation
+
+**Desktop**: Sidebar always visible
+
+**Mobile/Tablet**: 
+- Sidebar hidden
+- Hamburger menu shows Sheet component
+- Sheet opens from left side
+
+**Implementation**:
+```typescript
+{/* Mobile trigger */}
+<Button className="lg:hidden" variant="ghost" size="icon">
+  <Menu />
+</Button>
+
+{/* Desktop sidebar */}
+<aside className="hidden lg:block">
+  <Sidebar />
+</aside>
+```
+
+## Styling Utilities
+
+### Location
+
+`src/lib/utils/styling.ts`
+
+### Amount Styling Functions
+
+**getAmountColor**:
+```typescript
+export function getAmountColor(
+  type: 'deposit' | 'withdrawal' | 'interest'
+): string {
+  switch (type) {
+    case 'deposit':
+    case 'interest':
+      return 'text-green-600'
+    case 'withdrawal':
+      return 'text-red-600'
+  }
+}
+```
+
+**getAmountPrefix**:
+```typescript
+export function getAmountPrefix(
+  type: 'deposit' | 'withdrawal' | 'interest'
+): string {
+  switch (type) {
+    case 'deposit':
+    case 'interest':
+      return '+'
+    case 'withdrawal':
+      return '-'
+  }
+}
+```
+
+**Usage**:
+```typescript
+<span className={getAmountColor(transaction.type)}>
+  {getAmountPrefix(transaction.type)}{amount}
+</span>
+```
+
+**Benefits**: Consistent styling across all amount displays
+
+## Component Composition
+
+### Card Grid Pattern
+
+```typescript
+<div className="grid gap-sm md:grid-cols-2 lg:grid-cols-4">
+  <MetricCard title="Balance" value={balance} />
+  <MetricCard title="Rate" value={rate} />
+</div>
+```
+
+### Vertical Stack Pattern
+
+```typescript
+<div className="space-y-sm">
+  <Section1 />
+  <Section2 />
+  <Section3 />
+</div>
+```
+
+**Critical**: Use `space-y-sm` for consistency
+
+### Horizontal Flex Pattern
+
+```typescript
+<div className="flex items-center justify-between">
+  <h2 className="text-2xl font-bold">Title</h2>
+  <Button>Action</Button>
+</div>
+```
+
+## Dark Mode
+
+### Implementation
+
+**Provider**: next-themes
+
+**Setup**: In root layout
+
+```typescript
+import { ThemeProvider } from 'next-themes'
+
+<ThemeProvider attribute="class" defaultTheme="system">
+  {children}
+</ThemeProvider>
+```
+
+### Theme Toggle
+
+**Component**: `src/components/theme-toggle.tsx`
+
+```typescript
+import { useTheme } from 'next-themes'
+
+const { theme, setTheme } = useTheme()
+
+<Button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+  {theme === 'dark' ? <Sun /> : <Moon />}
+</Button>
+```
+
+### Color Variables
+
+**Location**: `src/app/globals.css`
+
+```css
+:root {
+  --primary: 142 76% 36%;
+  --background: 0 0% 100%;
+  /* ... */
+}
+
+.dark {
+  --primary: 142 76% 45%;
+  --background: 142 40% 5%;
+  /* ... */
+}
+```
+
+**Usage**: Automatic via Tailwind classes
+
+## Accessibility
+
+### Color Contrast
+
+**Goal**: WCAG 2.1 AA compliance
+
+**Primary Text**: 4.5:1 minimum contrast ratio
+
+**Large Text**: 3:1 minimum contrast ratio
+
+**Tested**: Primary green meets contrast requirements
+
+### Semantic HTML
+
+**Always Use**:
+- `<nav>` for navigation
+- `<main>` for main content
+- `<article>` for cards/sections
+- `<button>` for interactive elements
+
+**Never Use**:
+- `<div>` with onClick (use `<button>`)
+- Non-semantic wrappers when semantic options exist
+
+### ARIA Labels
+
+**Pattern**: Add labels for screen readers
+
+```typescript
+<Button aria-label="Close dialog">
+  <X />
+</Button>
+```
+
+**When to Use**: Icon-only buttons, complex interactions
+
+## Performance
+
+### CSS-in-JS
+
+**Not Used**: All styling via Tailwind CSS
+
+**Why**: Better performance, smaller bundle size
+
+### Critical CSS
+
+**Handled**: Next.js automatically inlines critical CSS
+
+### Unused CSS
+
+**Purging**: Tailwind automatically removes unused classes in production
+
+## Skeleton Loading
+
+### Pattern
+
+```typescript
+import { Skeleton } from '@/components/ui/skeleton'
+
+export function MySkeleton() {
+  return (
+    <div className="space-y-sm">
+      <Skeleton className="h-32 w-full" />
+      <Skeleton className="h-96 w-full" />
+    </div>
+  )
+}
+```
+
+**Dimensions**: Match actual component dimensions
+
+**Usage**: As Suspense fallback
+
+## Common Patterns
+
+### Metric Card
+
+```typescript
+<Card>
+  <CardHeader>
+    <CardDescription>Title</CardDescription>
+    <CardTitle className="text-2xl">{value}</CardTitle>
+  </CardHeader>
+</Card>
+```
+
+### Data Table
+
+```typescript
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Column</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    {data.map(item => (
+      <TableRow key={item.id}>
+        <TableCell>{item.value}</TableCell>
+      </TableRow>
+    ))}
+  </TableBody>
+</Table>
+```
+
+### Form Layout
+
+```typescript
+<form className="space-y-md">
+  <div className="space-y-sm">
+    <Label>Field</Label>
+    <Input />
+  </div>
+  <Button>Submit</Button>
+</form>
+```
+
+## Common Pitfalls
+
+1. **Inconsistent spacing**: Always use `space-y-sm` for vertical stacks
+2. **Inconsistent button sizes**: Use default size unless specifically needed
+3. **Missing responsive classes**: Test on mobile breakpoints
+4. **Hardcoded colors**: Use Tailwind color tokens (not hex values)
+5. **Missing dark mode support**: Test both light and dark themes
+6. **Poor contrast**: Check color contrast ratios
+7. **Non-semantic HTML**: Use semantic elements when available

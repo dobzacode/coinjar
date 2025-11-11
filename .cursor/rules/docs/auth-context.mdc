@@ -1,0 +1,384 @@
+---
+description: Authentication setup, patterns, and helpers
+---
+
+# Authentication Context
+
+**Last updated: November 12, 2025**
+
+## Authentication Provider
+
+**Library**: Better Auth
+
+**Configuration**: `src/lib/auth/auth.ts`
+
+**Providers**:
+1. Email/Password (bcrypt hashing)
+2. Google OAuth
+
+## Better Auth Configuration
+
+```typescript
+import { betterAuth } from 'better-auth'
+import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+
+export const auth = betterAuth({
+  database: drizzleAdapter(db, {
+    provider: 'pg'
+  }),
+  emailAndPassword: {
+    enabled: true,
+    bcrypt: true // Uses bcrypt for password hashing
+  },
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!
+    }
+  },
+  secret: process.env.BETTER_AUTH_SECRET!,
+  baseUrl: process.env.BETTER_AUTH_URL!
+})
+```
+
+## Environment Variables
+
+**Required**:
+```bash
+BETTER_AUTH_SECRET=      # Random secret for signing tokens
+BETTER_AUTH_URL=         # App base URL (e.g., http://localhost:3000)
+GOOGLE_CLIENT_ID=        # Google OAuth client ID
+GOOGLE_CLIENT_SECRET=    # Google OAuth client secret
+DATABASE_URL=            # Database connection string
+```
+
+**Critical**: `BETTER_AUTH_SECRET` must be a strong random string
+
+## Client Setup
+
+**Location**: `src/lib/auth/client.ts`
+
+```typescript
+import { createAuthClient } from 'better-auth/react'
+
+export const authClient = createAuthClient({
+  baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL
+})
+
+export const { signIn, signUp, signOut, useSession } = authClient
+```
+
+**Usage in Components**:
+```typescript
+import { signIn, signOut, useSession } from '@/lib/auth/client'
+
+const { data: session } = useSession()
+```
+
+## Authentication Helpers
+
+### For Server Actions
+
+**Location**: `src/lib/auth/helpers.ts`
+
+**Function**: `requireAuth()`
+
+```typescript
+export async function requireAuth(): Promise<string> {
+  const session = await auth.api.getSession({
+    headers: headers()
+  })
+  
+  if (!session?.user?.id) {
+    throw new Error('Unauthorized')
+  }
+  
+  return session.user.id
+}
+```
+
+**Usage**:
+```typescript
+'use server'
+
+export async function myAction() {
+  const userId = await requireAuth()
+  // Proceed with authenticated logic
+}
+```
+
+**What It Does**:
+1. Checks session from cookies
+2. If no session → throws error
+3. If session exists → returns userId
+4. Consistent across all server actions
+
+### For Server Components (Pages)
+
+**Location**: `src/lib/auth/page-helpers.ts`
+
+**Function**: `requireAuthForPage()`
+
+```typescript
+import { redirect } from 'next/navigation'
+
+export async function requireAuthForPage(): Promise<string> {
+  const session = await auth.api.getSession({
+    headers: headers()
+  })
+  
+  if (!session?.user?.id) {
+    redirect('/en/login') // Default to English
+  }
+  
+  return session.user.id
+}
+```
+
+**Usage**:
+```typescript
+export default async function DashboardPage() {
+  const userId = await requireAuthForPage()
+  // Page will only render for authenticated users
+}
+```
+
+**What It Does**:
+1. Checks session from cookies
+2. If no session → redirects to login
+3. If session exists → returns userId
+4. Used in all dashboard pages
+
+### For Auth Pages (Redirect Away from Login/Signup)
+
+**Location**: `src/lib/auth/page-helpers.ts`
+
+**Function**: `redirectIfAuthenticated()`
+
+```typescript
+export async function redirectIfAuthenticated(locale: string): Promise<void> {
+  const userId = await getCurrentUserId()
+  
+  if (userId) {
+    redirect(`/${locale}/dashboard`)
+  }
+}
+```
+
+**Usage**:
+```typescript
+export default async function LoginPage(props: LoginPageProps) {
+  const params = await props.params
+  await redirectIfAuthenticated(params.locale)
+  
+  // Page will only render for unauthenticated users
+  return <LoginForm />
+}
+```
+
+**What It Does**:
+1. Checks session from cookies
+2. If session exists → redirects to dashboard (locale-aware)
+3. If no session → allows page to render
+4. Used in login and signup pages to prevent logged-in users from accessing them
+
+**Why Needed**: Prevents confusing UX where logged-in users could visit login/signup pages
+
+### For Non-Protected Queries
+
+**Location**: `src/lib/auth/helpers.ts`
+
+**Function**: `getCurrentUserId()`
+
+```typescript
+export async function getCurrentUserId(): Promise<string | null> {
+  const session = await auth.api.getSession({
+    headers: headers()
+  })
+  
+  return session?.user?.id ?? null
+}
+```
+
+**Usage**:
+```typescript
+export const getDashboardData = cache(async () => {
+  const userId = await getCurrentUserId()
+  if (!userId) return null
+  
+  // Fetch data
+})
+```
+
+**When to Use**: Only for queries that should return null for unauthenticated users (e.g., cached dashboard data)
+
+## Authentication Flows
+
+### Sign Up Flow
+
+**Page**: `src/app/[locale]/(auth)/signup/page.tsx`
+
+**Form**: `src/features/auth/signup-form.tsx`
+
+**Process**:
+1. User fills name, email, password (min 8 chars)
+2. Form validates with Zod
+3. Calls `authClient.signUp.email()`
+4. Better Auth creates user with bcrypt-hashed password
+5. Automatically signs in user
+6. Redirects to dashboard
+
+**Schema**:
+```typescript
+const signupSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(8)
+})
+```
+
+**Error Handling**:
+- Duplicate email → Better Auth returns error
+- Invalid data → Zod validation error
+- Network error → Toast notification
+
+### Sign In Flow
+
+**Page**: `src/app/[locale]/(auth)/login/page.tsx`
+
+**Form**: `src/features/auth/login-form.tsx`
+
+**Process**:
+1. User enters email and password
+2. Form validates with Zod
+3. Calls `authClient.signIn.email()`
+4. Better Auth verifies password with bcrypt
+5. Creates session
+6. Redirects to dashboard
+
+**Schema**:
+```typescript
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8)
+})
+```
+
+### Google OAuth Flow
+
+**Available On**: Login and signup pages
+
+**Process**:
+1. User clicks "Continue with Google"
+2. Redirects to Google OAuth consent screen
+3. Google returns to callback URL
+4. Better Auth creates/finds user
+5. Creates session
+6. Redirects to dashboard
+
+**Configuration**:
+- Callback URL: `{BETTER_AUTH_URL}/api/auth/callback/google`
+- Scopes: email, profile
+
+### Sign Out Flow
+
+**Component**: User menu in dashboard layout
+
+**Process**:
+1. User clicks sign out button
+2. Calls `authClient.signOut()`
+3. Better Auth clears session
+4. **Critical**: Must call `router.refresh()` to clear client state
+5. Redirects to login page
+
+**Implementation**:
+```typescript
+'use client'
+
+async function handleSignOut() {
+  await signOut()
+  router.refresh() // Clear client state
+  router.push(`/${locale}/login`)
+}
+```
+
+**Why `router.refresh()`**: Clears cached server component data
+
+## Password Security
+
+**Hashing**: bcryptjs
+
+**Configuration**: Automatic via Better Auth `bcrypt: true`
+
+**Salt Rounds**: Default (10 rounds)
+
+**Storage**: Hashed password stored in database
+
+**Verification**: Better Auth handles verification automatically
+
+**Never**:
+- Don't implement custom password hashing
+- Don't store plain-text passwords
+- Don't expose password hashes to client
+
+## Session Management
+
+**Storage**: HTTP-only cookies (secure in production)
+
+**Duration**: Default Better Auth session lifetime
+
+**Refresh**: Automatic on requests
+
+**Validation**: On every server action and page load
+
+**Access**:
+- Server: `auth.api.getSession({ headers: headers() })`
+- Client: `useSession()` hook
+
+## Protected Routes
+
+**Pattern**: All dashboard routes require authentication, auth pages redirect logged-in users
+
+**Implementation**: 
+- Dashboard pages: Use `requireAuthForPage()` to ensure user is authenticated
+- Login/Signup pages: Use `redirectIfAuthenticated()` to redirect logged-in users to dashboard
+
+**Middleware**: Locale routing only (no auth in middleware)
+
+**Auth Check**: In page components using appropriate helper functions
+
+**Routes**:
+- `/[locale]/dashboard/*` → Requires authentication (`requireAuthForPage()`)
+- `/[locale]/login` → Redirects if authenticated (`redirectIfAuthenticated()`)
+- `/[locale]/signup` → Redirects if authenticated (`redirectIfAuthenticated()`)
+
+## Testing
+
+**Mock Session**:
+```typescript
+import { mockAuthSession } from 'tests/utils/test-helpers'
+
+const userId = 'user-123'
+mockAuthSession(userId)
+```
+
+**Location**: `tests/utils/test-helpers.ts`
+
+**Usage**: Mock authentication for unit and component tests
+
+## Common Pitfalls
+
+1. **Using wrong helper**: Use `requireAuth()` in actions, `requireAuthForPage()` in pages, `redirectIfAuthenticated()` in login/signup pages
+2. **Forgetting router.refresh()**: Always call after sign-out to clear client state
+3. **Missing error handling**: Always wrap auth calls in try-catch
+4. **Exposing secrets**: Never commit `BETTER_AUTH_SECRET` to version control
+5. **Custom auth logic**: Don't implement custom password verification (use Better Auth)
+6. **Not redirecting logged-in users**: Always use `redirectIfAuthenticated()` on login/signup pages to prevent confusion
+
+## Future Enhancements
+
+- Email verification flow
+- Password reset flow
+- Two-factor authentication
+- Session timeout configuration
+- Remember me functionality

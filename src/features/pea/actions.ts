@@ -1,29 +1,15 @@
 'use server'
 
-import { auth } from '@/lib/auth'
-import { getCacheTag } from '@/lib/cache/tags'
+import { requireAuth } from '@/lib/auth/helpers'
+import { invalidateFeatureCache } from '@/lib/cache/helpers'
 import { db } from '@/lib/db'
 import { etfPricesCache, peaAccounts, peaHoldings } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { revalidatePath, updateTag } from 'next/cache'
-import { headers } from 'next/headers'
 import { fetchEtfPrice } from './etf-service'
 import type { PeaHoldingInput } from './schema'
 
-async function getCurrentUser() {
-	const session = await auth.api.getSession({
-		headers: await headers(),
-	})
-
-	if (!session?.user?.id) {
-		throw new Error('Non authentifié')
-	}
-
-	return session.user.id
-}
-
 export async function addHolding(data: PeaHoldingInput) {
-	const userId = await getCurrentUser()
+	const userId = await requireAuth()
 
 	const userPea = await db.query.peaAccounts.findFirst({
 		where: eq(peaAccounts.userId, userId),
@@ -77,17 +63,13 @@ export async function addHolding(data: PeaHoldingInput) {
 		})
 		.where(eq(peaAccounts.id, userPea.id))
 
-	updateTag(getCacheTag.pea(userId))
-	updateTag(getCacheTag.dashboard(userId))
-
-	revalidatePath('/dashboard', 'page')
-	revalidatePath('/dashboard/pea', 'page')
+	await invalidateFeatureCache(userId, 'pea')
 
 	return { success: true }
 }
 
 export async function refreshPrices() {
-	const userId = await getCurrentUser()
+	const userId = await requireAuth()
 
 	const userPea = await db.query.peaAccounts.findFirst({
 		where: eq(peaAccounts.userId, userId),
@@ -142,11 +124,7 @@ export async function refreshPrices() {
 		}
 	}
 
-	updateTag(getCacheTag.pea(userId))
-	updateTag(getCacheTag.dashboard(userId))
-
-	revalidatePath('/dashboard', 'page')
-	revalidatePath('/dashboard/pea', 'page')
+	await invalidateFeatureCache(userId, 'pea')
 
 	return {
 		success: true,

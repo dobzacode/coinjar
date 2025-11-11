@@ -1,0 +1,502 @@
+---
+description: PEE employee savings plan, contribution types, and share tracking
+---
+
+# PEE Context
+
+**Last updated: November 11, 2025**
+
+## Business Overview
+
+**What is PEE**: Plan d'Épargne Entreprise (French employee savings plan)
+
+**Key Characteristics**:
+- Company-sponsored savings plan
+- Multiple contribution types with different sources
+- Employer matching and profit-sharing
+- Invested in company shares or funds
+- Tax advantages for employer contributions
+- Lock-in period (typically 5 years, with exceptions)
+
+## Account Structure
+
+**Database Tables**: `pee_accounts` and `pee_contributions`
+
+**Account Fields**:
+- `companyName`: Employer name
+- `sharePrice`: Current price per share (manually updated)
+- `totalShares`: Total shares owned (calculated from contributions)
+
+**Contribution Fields**:
+- `type`: Contribution type (personal, abondement, participation, interessement)
+- `amount`: Contribution amount in euros
+- `shares`: Shares received for this contribution
+- `date`: Contribution date
+
+**Account Creation**: Lazy (created on first page visit using `getOrCreatePee()`)
+
+## Contribution Types
+
+### Personal (personal)
+
+**Source**: Employee's salary
+
+**Meaning**: Money contributed directly by employee
+
+**Employer Match**: May trigger abondement (employer match)
+
+**Tax**: Pre-tax contribution (reduces taxable income)
+
+**Display**: 
+- Label: "Personal" (EN) / "Personnel" (FR)
+- Color: Blue (neutral)
+
+**Example**: Employee contributes 100€ from paycheck
+
+### Employer Match (abondement)
+
+**Source**: Company
+
+**Meaning**: Employer matching contribution
+
+**Trigger**: Usually matches personal contributions (e.g., 50% match up to limit)
+
+**Tax**: Tax-free for employee (up to certain limit)
+
+**Display**:
+- Label: "Employer Match" (EN) / "Abondement" (FR)
+- Color: Green (gain)
+
+**Example**: Employee contributes 100€ → Employer adds 50€ (50% match)
+
+### Profit Sharing (participation)
+
+**Source**: Company profits
+
+**Meaning**: Mandatory profit-sharing (companies > 50 employees)
+
+**Tax**: Tax-free if kept in plan
+
+**Display**:
+- Label: "Profit Sharing" (EN) / "Participation" (FR)
+- Color: Green (gain)
+
+**Example**: Company shares 1,000€ of profits with employee
+
+### Incentive (interessement)
+
+**Source**: Company
+
+**Meaning**: Discretionary performance bonus
+
+**Tax**: Tax-free if kept in plan
+
+**Display**:
+- Label: "Incentive" (EN) / "Intéressement" (FR)
+- Color: Green (gain)
+
+**Example**: Company gives 500€ bonus for meeting goals
+
+## Business Rules
+
+### Share Calculation
+
+**Formula**: `shares = amount / sharePrice` (at contribution time)
+
+**Example**:
+- Contribution: 100€
+- Share price: 10€
+- Shares received: 10
+
+**Fractional Shares**: Supported (up to 4 decimal places)
+
+**Storage**: Both amount and shares stored (for historical accuracy)
+
+### Total Shares Calculation
+
+**Formula**: Sum of all contribution shares
+
+```typescript
+totalShares = sum(contribution.shares)
+```
+
+**Update**: Recalculated on each contribution
+
+### Account Value Calculation
+
+**Formula**: `value = totalShares * sharePrice`
+
+**Location**: `src/features/pee/calculations.ts`
+
+```typescript
+export function calculatePeeValue(
+  totalShares: number,
+  sharePrice: number
+): number {
+  return totalShares * sharePrice
+}
+```
+
+**Display**: Main account value card
+
+### Contribution Breakdown
+
+**Purpose**: Show distribution of contribution types
+
+**Location**: `src/features/pee/calculations.ts`
+
+```typescript
+export function calculateContributionsByType(contributions) {
+  return {
+    personal: sum where type = 'personal',
+    abondement: sum where type = 'abondement',
+    participation: sum where type = 'participation',
+    interessement: sum where type = 'interessement'
+  }
+}
+```
+
+**Display**: Pie chart showing percentage of each type
+
+## User Workflows
+
+### Add Contribution
+
+1. User clicks "Add Contribution"
+2. Dialog opens with form
+3. User selects contribution type
+4. User enters amount
+5. Shares auto-calculated based on current share price
+6. User selects contribution date
+7. Submits form
+8. Server action:
+   - Creates contribution record
+   - Updates `totalShares` (sum of all contributions)
+   - Invalidates PEE and dashboard caches
+9. Dialog closes, success toast
+10. Contribution appears in list
+
+**Auto-Calculation**: Shares calculated from amount and current share price
+
+### Update Share Price
+
+1. User clicks "Update Share Price"
+2. Dialog opens with form
+3. User enters new price per share
+4. Submits form
+5. Server action:
+   - Updates `sharePrice` field
+   - **Does NOT** recalculate old contribution shares (historical accuracy)
+   - Invalidates PEE and dashboard caches
+6. Dialog closes, success toast
+7. New share price displayed
+8. Account value recalculated
+
+**Important**: Changing share price only affects new contributions and account value calculation
+
+## Data Constraints
+
+### Contribution Type Validation
+
+**Schema**:
+```typescript
+type: z.enum(['personal', 'abondement', 'participation', 'interessement'])
+```
+
+**Rules**:
+- Must be one of the four types
+- Translated in UI using `translateContributionType()`
+
+### Amount Validation
+
+**Schema**:
+```typescript
+amount: amountSchema(t)
+// Accepts string or number, coerces to positive number
+```
+
+**Rules**:
+- Must be positive number
+- Reasonable limits (e.g., < 50,000€)
+
+### Share Price Validation
+
+**Schema**:
+```typescript
+sharePrice: positiveNumberSchema(t, 'sharePrice')
+```
+
+**Rules**:
+- Must be positive number
+- Typically between 1€ and 1,000€
+
+### Date Validation
+
+**Schema**:
+```typescript
+date: dateSchema(t)
+```
+
+**Rules**:
+- Valid date
+- Not in future
+- Typically payroll/distribution date
+
+## UI Components
+
+### Page Location
+
+`src/app/[locale]/dashboard/pee/page.tsx`
+
+### Main Components
+
+**PeeContent** (`src/features/pee/components/pee-content.tsx`):
+- Main container for PEE page
+- Shows account value and share info
+- Shows contribution breakdown
+- Shows contribution history
+- Contains action buttons
+
+**PeeMetricsCards** (`src/features/pee/components/pee-metrics-cards.tsx`):
+- Displays 3 metric cards:
+  1. Total Value (shares * price)
+  2. Total Shares
+  3. Share Price
+
+**PeeContributionBreakdown** (`src/features/pee/components/pee-contribution-breakdown.tsx`):
+- Pie chart or card grid showing:
+  - Personal contributions (amount and %)
+  - Employer match (amount and %)
+  - Profit sharing (amount and %)
+  - Incentive (amount and %)
+
+**PeeContributionList** (`src/features/pee/components/pee-contribution-list.tsx`):
+- Displays contribution history
+- Desktop: Table view
+- Mobile: Card view (< md breakpoint)
+- Sorted by date (newest first)
+- Shows type, amount, shares, date
+- Supports limit prop (for dashboard preview)
+
+**AddContributionDialog**:
+- Form for adding contributions
+- Type selector (radio or select)
+- Amount input
+- Shares auto-calculated and displayed
+- Date input
+
+**UpdateSharePriceDialog**:
+- Form for updating share price
+- Price input (number)
+
+### Skeleton Loading
+
+**PeeSkeleton**: Displayed while page loads
+
+**Structure**:
+- 3 metric card skeletons
+- Contribution breakdown skeleton
+- Contribution list skeleton
+
+**Usage**: Wrapped in Suspense boundary
+
+## Type Translation
+
+### Utility Function
+
+**Location**: `src/lib/i18n/type-translators.ts`
+
+```typescript
+export function translateContributionType(
+  type: string,
+  t: TranslationFn
+): string {
+  switch (type) {
+    case 'personal': return t('personal')
+    case 'abondement': return t('employerMatch')
+    case 'participation': return t('profitSharing')
+    case 'interessement': return t('incentive')
+    default: return type
+  }
+}
+```
+
+**Usage**:
+```typescript
+{translateContributionType(contribution.type, t)}
+```
+
+**Replaces**: Nested ternaries
+
+## Cache Management
+
+### Cache Tags
+
+**Tag**: `pee-${userId}`
+
+**Includes**:
+- PEE account data
+- Contribution history
+
+### Invalidation
+
+**When**:
+- After adding contribution
+- After updating share price
+
+**How**:
+```typescript
+await invalidateFeatureCache(userId, 'pee')
+// Also invalidates dashboard cache
+```
+
+**Client-Side**:
+```typescript
+router.refresh() // Refresh server components
+```
+
+## Testing
+
+### Unit Tests
+
+**Location**: `tests/unit/pee-calculations.test.ts`
+
+**Tests**:
+- Value calculation
+- Share calculation
+- Contribution breakdown
+- Type translation
+
+### E2E Tests
+
+**Location**: `tests/e2e/pee.spec.ts`
+
+**Tests**:
+- Add contribution (all types)
+- Update share price
+- Contribution breakdown display
+- Value recalculation
+
+## Common Scenarios
+
+### First-Time User
+
+1. User navigates to PEE page
+2. Account doesn't exist yet
+3. `getOrCreatePee()` creates account with default values
+4. Page displays empty state (no contributions)
+5. Share price: 10€ (default)
+
+### Monthly Personal Contribution
+
+1. User contributes 100€ from paycheck
+2. Share price: 10€
+3. Shares received: 10
+4. Total shares: 10
+5. Account value: 100€
+
+### With Employer Match
+
+1. User contributes 100€ personal
+2. Shares: 10 (at 10€/share)
+3. Employer matches 50€ (50% match)
+4. Employer shares: 5 (at 10€/share)
+5. Total shares: 15
+6. Account value: 150€
+
+### Annual Profit Sharing
+
+1. Company distributes 1,000€ profit sharing
+2. Share price: 12€ (increased)
+3. Shares: 83.3333 (1000/12)
+4. Total shares: 98.3333 (15 + 83.3333)
+5. Account value: 1,180€ (98.3333 * 12)
+
+### Share Price Update
+
+1. Current price: 10€, shares: 100, value: 1,000€
+2. Update price to 12€
+3. Shares: still 100 (unchanged)
+4. New value: 1,200€ (100 * 12)
+5. Gain: 200€
+
+## Business Insights
+
+### Contribution Mix
+
+**Ideal**: Maximize employer contributions
+
+**Strategy**:
+1. Contribute enough personal to get full employer match
+2. Take advantage of profit sharing (mandatory)
+3. Benefit from incentive bonuses (discretionary)
+
+**Example**: 
+- Personal: 1,000€ → Match: 500€ (50% free money!)
+- Profit sharing: 1,500€
+- Total invested: 1,000€ (from you) + 2,000€ (from employer) = 200% return!
+
+### Tax Benefits
+
+**Personal**: Reduces taxable income
+
+**Employer Contributions**: Tax-free (up to limits)
+
+**Gains**: Tax-free if kept in plan
+
+**Withdrawal**: Taxed only on gains (if withdrawn early)
+
+## Future Enhancements
+
+1. **Withdrawal Tracking**: Track withdrawals (reduce shares)
+2. **Lock-In Period**: Track and display lock-in expiry date
+3. **Tax Calculator**: Estimate tax benefits and implications
+4. **Historical Charts**: Show account value growth over time
+5. **Contribution Limits**: Track and warn about annual limits
+6. **Multiple Funds**: Support investing in different funds
+7. **Employer Rules**: Configure matching rules and limits
+8. **Export**: Generate tax documents and statements
+
+## Troubleshooting
+
+### Incorrect Account Value
+
+**Problem**: Value doesn't match shares * price
+
+**Solutions**:
+1. Check share price is current
+2. Verify total shares calculation
+3. Recalculate: sum all contribution shares
+4. Check for missing contributions
+
+### Missing Employer Match
+
+**Problem**: Added personal contribution but no match
+
+**Solutions**:
+1. Employer match is separate contribution (add manually)
+2. Check if match limit reached
+3. Verify company matching policy
+4. Match may be added later (quarterly)
+
+### Share Calculation Mismatch
+
+**Problem**: Shares don't match amount/price
+
+**Solutions**:
+1. Check share price at contribution time
+2. Historical contributions use old share price
+3. Share price updates don't recalculate old contributions
+4. Verify calculation: amount / price
+5. Check for fractional shares (rounding)
+
+### Contribution Not Appearing
+
+**Problem**: Added contribution but not in list
+
+**Solutions**:
+1. Clear cache (invalidate PEE cache)
+2. Refresh page (router.refresh())
+3. Check contribution date ordering
+4. Verify contribution inserted in database
+5. Check list limit (if using limit prop)

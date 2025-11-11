@@ -25,12 +25,7 @@ export function RefreshPricesButton() {
 	}
 
 	return (
-		<Button
-			variant="outline"
-			size="sm"
-			onClick={handleRefresh}
-			disabled={isLoading}
-		>
+		<Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
 			<RefreshCw
 				className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
 			/>

@@ -1,0 +1,466 @@
+---
+description: Server components, caching strategy, and data fetching patterns
+---
+
+# Server Context
+
+**Last updated: November 11, 2025**
+
+## Server Component Architecture
+
+### Default to Server Components
+
+**All pages are server components by default** unless they need:
+- Event handlers
+- Browser APIs
+- React hooks (useState, useEffect)
+- Client-side state
+
+### Server Component Benefits
+
+1. **Performance**: No JavaScript sent to client
+2. **SEO**: Fully rendered HTML
+3. **Security**: Direct database access
+4. **Caching**: Leverages Next.js caching
+5. **Data Fetching**: No loading states needed
+
+### Page Component Pattern
+
+```typescript
+import { requireAuthForPage } from '@/lib/auth/page-helpers'
+import { getLivretA } from './queries'
+import { LivretAContent } from './components/content'
+
+export default async function LivretAPage() {
+  // 1. Authenticate
+  const userId = await requireAuthForPage()
+  
+  // 2. Fetch data
+  const account = await getLivretA(userId)
+  
+  // 3. Render (can be client component)
+  return <LivretAContent account={account} />
+}
+```
+
+## Caching Architecture
+
+### Cache Tags System
+
+**Location**: `src/lib/cache/tags.ts`
+
+**Definitions**:
+```typescript
+export const CACHE_TAGS = {
+  LIVRET_A: 'livret-a',
+  PEA: 'pea',
+  PEE: 'pee',
+  DASHBOARD: 'dashboard',
+}
+
+export const getCacheTag = {
+  livretA: (userId: string) => `livret-a-${userId}`,
+  pea: (userId: string) => `pea-${userId}`,
+  pee: (userId: string) => `pee-${userId}`,
+  dashboard: (userId: string) => `dashboard-${userId}`,
+}
+```
+
+**Why User-Scoped**: Prevents cache leakage between users
+
+### "use cache" Directive Pattern
+
+**Pattern**: Use the `"use cache"` directive with `cacheTag()` and `cacheLife()` APIs
+
+```typescript
+import { cacheTag, cacheLife } from 'next/cache'
+import { getCacheTag } from '@/lib/cache/tags'
+
+export async function getLivretA(userId: string) {
+  'use cache'
+  cacheTag(getCacheTag.livretA(userId))
+  cacheLife('hours') // Named profile or custom duration
+  
+  return await db.query.livretA.findFirst({
+    where: eq(livretA.userId, userId),
+    with: {
+      transactions: {
+        orderBy: [desc(livretATransactions.date)],
+        limit: 100
+      }
+    }
+  })
+}
+```
+
+**When to Use**: All database queries that fetch user data
+
+**Cache Life Options**:
+- Named profiles: `'hours'`, `'days'`, `'weeks'`
+- Custom duration: `{ revalidate: 300 }` (in seconds)
+- Custom with expiration: `{ expire: 3600 }` (for remote caching)
+
+### Cache Invalidation
+
+**Location**: `src/lib/cache/helpers.ts`
+
+**Helper Functions**:
+```typescript
+// Feature-specific invalidation (also invalidates dashboard)
+await invalidateFeatureCache(userId, 'livret-a')
+await invalidateFeatureCache(userId, 'pea')
+await invalidateFeatureCache(userId, 'pee')
+
+// Dashboard only
+await invalidateDashboardCache(userId)
+
+// Everything (rarely used)
+await invalidateAllUserCache(userId)
+```
+
+**Implementation**:
+```typescript
+import { updateTag, revalidatePath } from 'next/cache'
+
+export async function invalidateFeatureCache(
+  userId: string,
+  feature: 'livret-a' | 'pea' | 'pee'
+) {
+  // Immediately invalidate feature cache (read-your-own-writes)
+  updateTag(getCacheTag[featureMap[feature]](userId))
+  
+  // Immediately invalidate dashboard cache (shows aggregated data)
+  updateTag(getCacheTag.dashboard(userId))
+  
+  // Invalidate paths
+  revalidatePath('/dashboard', 'page')
+  revalidatePath(`/dashboard/${feature}`, 'page')
+}
+```
+
+**updateTag vs revalidateTag**:
+- `updateTag()`: For server actions, immediately expires cache (read-your-own-writes)
+- `revalidateTag()`: Supports stale-while-revalidate with `profile="max"` (background revalidation)
+
+**Why Invalidate Both**:
+- Dashboard shows aggregated data from all features
+- Must stay in sync when individual features change
+- Prevents stale data in overview cards
+
+### Client-Side Refresh
+
+**Critical**: After mutations, client must refresh server components
+
+```typescript
+// In client component after successful mutation
+router.refresh()
+```
+
+**Why Needed**: Ensures server components re-fetch with fresh data
+
+**Complete Invalidation Pattern**:
+```typescript
+// Server action
+await invalidateFeatureCache(userId, 'pea')
+
+// Client component
+router.refresh()
+toast.success(t('success'))
+```
+
+## Service Layer
+
+### Account Service Pattern
+
+**Location**: `src/lib/services/account-service.ts`
+
+**getOrCreate Pattern**:
+```typescript
+export async function getOrCreateLivretA(userId: string) {
+  let account = await db.query.livretA.findFirst({
+    where: eq(livretA.userId, userId)
+  })
+  
+  if (!account) {
+    const [newAccount] = await db.insert(livretA).values({
+      userId,
+      balance: '0.00',
+      currentRate: '3.00'
+    }).returning()
+    
+    account = newAccount
+  }
+  
+  return account
+}
+```
+
+**When to Use**: On feature pages to ensure account exists
+
+**Benefits**:
+- Eliminates null checks in page components
+- Lazy initialization (accounts created on first visit)
+- Consistent pattern across all features
+
+### Dashboard Service
+
+**Location**: `src/features/dashboard/services.ts`
+
+**Consolidated Data Fetching**:
+```typescript
+export async function getDashboardData(userId: string) {
+  // Parallel fetching
+  const [livretAData, peaData, peeData, user] = await Promise.all([
+    getLivretAData(userId),
+    getPeaData(userId),
+    getPeeData(userId),
+    getUserData(userId)
+  ])
+  
+  // Calculate aggregates
+  const totalBalance = 
+    livretAData.balance + 
+    peaData.currentValue + 
+    peeData.value
+  
+  return {
+    livretA: livretAData,
+    pea: peaData,
+    pee: peeData,
+    totalBalance,
+    totalGain: peaData.gain,
+    signupDate: user?.createdAt ?? null,
+    earliestTransaction: /* calculate */
+  }
+}
+```
+
+**Benefits**:
+- Single function call from page component
+- Parallel data fetching with `Promise.all`
+- Eliminates triple-fetching anti-pattern
+- Type-safe return value
+- Single source of truth for dashboard data
+
+### React cache() for Deduplication
+
+**Pattern**: Wrap functions that might be called multiple times in one render
+
+```typescript
+import { cache } from 'react'
+
+export const getCurrentUserId = cache(async () => {
+  const session = await auth.api.getSession({
+    headers: headers()
+  })
+  return session?.user?.id ?? null
+})
+```
+
+**When to Use**: Functions called multiple times in component tree
+
+**Why**: Deduplicates requests within single render
+
+**Difference from unstable_cache**:
+- `cache()` - Per-render deduplication
+- `unstable_cache()` - Persistent caching with tags
+
+## Data Fetching Patterns
+
+### Sequential Fetching
+
+**Pattern**: Fetch one after another when dependent
+
+```typescript
+const userId = await requireAuthForPage()
+const account = await getOrCreateLivretA(userId)
+const transactions = await getTransactions(account.id)
+```
+
+**When to Use**: When second query depends on first result
+
+### Parallel Fetching
+
+**Pattern**: Fetch multiple independent queries simultaneously
+
+```typescript
+const [livretA, pea, pee] = await Promise.all([
+  getLivretA(userId),
+  getPea(userId),
+  getPee(userId)
+])
+```
+
+**When to Use**: When queries are independent
+
+**Benefits**: Faster page loads
+
+### Streaming with Suspense
+
+**Pattern**: Show partial content while loading
+
+```typescript
+<Suspense fallback={<OverviewCardsSkeleton />}>
+  <OverviewCards userId={userId} />
+</Suspense>
+
+<Suspense fallback={<AccountCardsSkeleton />}>
+  <AccountCards userId={userId} />
+</Suspense>
+```
+
+**When to Use**: For slow queries or non-critical content
+
+**Benefits**: Better perceived performance
+
+## Business Logic Layer
+
+### Calculation Service
+
+**Location**: `src/features/dashboard/calculations.ts` and feature-specific calculation files
+
+**Pure Functions**:
+```typescript
+export function calculateChartDateRange(
+  signupDate: Date | null,
+  earliestTransaction: Date | null
+): { startDate: Date; dataPoints: number } {
+  // Pure calculation logic
+}
+```
+
+**Centralized Exports**: `src/lib/calculations/index.ts`
+
+```typescript
+export { calculateInterest } from '@/features/livret-a/calculations'
+export { calculatePortfolioMetrics } from '@/features/pea/calculations'
+export { calculatePeeValue } from '@/features/pee/calculations'
+export { calculateChartDateRange, generateWealthDataPoints } from '@/features/dashboard/calculations'
+```
+
+**Benefits**:
+- Easy to test (pure functions)
+- Reusable across features
+- Clear separation from data access
+- Single import point
+
+## Loading States
+
+### Skeleton Components
+
+**Pattern**: Dedicated skeleton component per feature
+
+```typescript
+// Feature skeleton
+export function LivretASkeleton() {
+  return (
+    <div className="space-y-sm">
+      <Skeleton className="h-32 w-full" />
+      <Skeleton className="h-96 w-full" />
+    </div>
+  )
+}
+
+// Page with Suspense
+export default function LivretAPage() {
+  return (
+    <Suspense fallback={<LivretASkeleton />}>
+      <LivretAContent />
+    </Suspense>
+  )
+}
+```
+
+**Skeleton Components**:
+- `LivretASkeleton`
+- `PeaSkeleton`
+- `PeeSkeleton`
+- `OverviewCardsSkeleton`
+- `AccountCardsSkeleton`
+
+## Error Handling
+
+### Error Boundaries
+
+**Not Implemented Yet**: Currently uses default Next.js error pages
+
+**Future**: Add custom `error.tsx` files
+
+### Error Propagation
+
+**Pattern**: Let errors bubble up
+
+```typescript
+// In queries
+if (!data) {
+  throw new Error('Data not found')
+}
+
+// In pages
+try {
+  const data = await query()
+} catch (error) {
+  // Next.js will catch and show error page
+}
+```
+
+## Route Segment Configuration
+
+### Dynamic Rendering
+
+**Pattern**: Force dynamic rendering for auth checks
+
+```typescript
+export const dynamic = 'force-dynamic'
+```
+
+**When to Use**: Dashboard pages that need fresh auth checks
+
+### Revalidation
+
+**Pattern**: Set revalidation time for cached pages
+
+```typescript
+export const revalidate = 3600 // 1 hour
+```
+
+**When to Use**: Public pages with infrequent updates
+
+## Common Patterns
+
+### getOrCreate + Cached Query
+
+```typescript
+// 1. Ensure account exists
+const account = await getOrCreateLivretA(userId)
+
+// 2. Fetch with cache
+const data = await getLivretAWithTransactions(userId)
+```
+
+### Mutation + Invalidation
+
+```typescript
+// Server action
+await db.insert(table).values(data)
+await invalidateFeatureCache(userId, 'feature')
+
+// Client component
+router.refresh()
+```
+
+### Parallel Dashboard Fetch
+
+```typescript
+const dashboardData = await getDashboardData(userId)
+```
+
+## Common Pitfalls
+
+1. **Missing cache invalidation**: Always invalidate after mutations
+2. **Forgetting router.refresh()**: Must refresh client after invalidation
+3. **Not using getOrCreate**: Can lead to null checks everywhere
+4. **Sequential instead of parallel**: Use `Promise.all` when possible
+5. **Wrong cache helper**: Use feature-specific invalidation (invalidates dashboard too)
+6. **Cache without tags**: Always include tags for invalidation
+7. **Mixing cache() and unstable_cache()**: Use cache() for deduplication, unstable_cache() for persistence

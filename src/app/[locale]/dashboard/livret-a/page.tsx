@@ -1,3 +1,5 @@
+'use cache: private'
+
 import {
 	Card,
 	CardContent,
@@ -5,26 +7,16 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/components/ui/card'
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table'
 import { LivretARateForm } from '@/features/livret-a/components/livret-a-rate-form'
 import { LivretASkeleton } from '@/features/livret-a/components/livret-a-skeleton'
 import { LivretATransactionForm } from '@/features/livret-a/components/livret-a-transaction-form'
-import { auth } from '@/lib/auth'
-import { db } from '@/lib/db'
-import { livretA } from '@/lib/db/schema'
-import { formatCurrency, formatDate } from '@/lib/utils'
-import { eq } from 'drizzle-orm'
+import { TransactionList } from '@/features/livret-a/components/transaction-list'
+import { requireAuthForPage } from '@/lib/auth/page-helpers'
+import { getOrCreateLivretA } from '@/lib/services/account-service'
+import { formatCurrency } from '@/lib/utils'
 import { TrendingUp, Wallet } from 'lucide-react'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
-import { headers } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { cacheLife } from 'next/cache'
 import { Suspense } from 'react'
 
 interface LivretAPageProps {
@@ -33,36 +25,8 @@ interface LivretAPageProps {
 
 async function LivretAContent() {
 	const t = await getTranslations('livretA')
-	const session = await auth.api.getSession({
-		headers: await headers(),
-	})
-
-	if (!session?.user?.id) {
-		redirect('/login')
-	}
-
-	let userLivret = await db.query.livretA.findFirst({
-		where: eq(livretA.userId, session.user.id),
-		with: {
-			transactions: {
-				orderBy: (transactions, { desc }) => [desc(transactions.date)],
-				limit: 10,
-			},
-		},
-	})
-
-	if (!userLivret) {
-		const [newLivret] = await db
-			.insert(livretA)
-			.values({
-				userId: session.user.id,
-				balance: '0.00',
-				currentRate: '3.000',
-			})
-			.returning()
-
-		userLivret = { ...newLivret, transactions: [] }
-	}
+	const userId = await requireAuthForPage()
+	const userLivret = await getOrCreateLivretA(userId)
 
 	const balance = parseFloat(userLivret.balance)
 	const rate = parseFloat(userLivret.currentRate)
@@ -117,51 +81,7 @@ async function LivretAContent() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					{userLivret.transactions.length === 0 ? (
-						<p className="text-center text-muted-foreground">
-							{t('noTransactions')}
-						</p>
-					) : (
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>{t('date')}</TableHead>
-									<TableHead>{t('type')}</TableHead>
-									<TableHead>Description</TableHead>
-									<TableHead className="text-right">{t('amount')}</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{userLivret.transactions.map((transaction) => (
-									<TableRow key={transaction.id}>
-										<TableCell>
-											{formatDate(transaction.date, 'short')}
-										</TableCell>
-										<TableCell className="capitalize">
-											{transaction.type === 'deposit'
-												? t('deposit')
-												: transaction.type === 'withdrawal'
-													? t('withdrawal')
-													: t('interest')}
-										</TableCell>
-										<TableCell className="text-muted-foreground">
-											{transaction.description || '-'}
-										</TableCell>
-										<TableCell
-											className={`text-right font-medium ${
-												transaction.type === 'withdrawal'
-													? 'text-destructive'
-													: 'text-green-600'
-											}`}
-										>
-											{transaction.type === 'withdrawal' ? '-' : '+'}
-											{formatCurrency(transaction.amount)}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					)}
+					<TransactionList transactions={userLivret.transactions} />
 				</CardContent>
 			</Card>
 		</div>
@@ -169,6 +89,8 @@ async function LivretAContent() {
 }
 
 export default async function LivretAPage({ params }: LivretAPageProps) {
+	cacheLife({ stale: 60 })
+
 	const { locale } = await params
 	setRequestLocale(locale)
 

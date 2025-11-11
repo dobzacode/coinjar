@@ -7,15 +7,15 @@ import {
 	PerformanceMetrics,
 	WealthEvolutionChart,
 } from '@/features/dashboard/components'
+import { getUserId } from '@/features/dashboard/queries'
+import { getDashboardData } from '@/features/dashboard/services'
 import {
-	getUserId,
-	getUserLivret,
-	getUserPea,
-	getUserPee,
-} from '@/features/dashboard/queries'
-import { calculatePortfolioMetrics } from '@/features/pea/calculations'
-import { calculatePeeValue } from '@/features/pee/calculations'
+	calculateChartDateRange,
+	calculateTotalReturn,
+	generateWealthDataPoints,
+} from '@/lib/calculations'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
+import { cacheLife } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 
@@ -23,136 +23,69 @@ interface DashboardPageProps {
 	params: Promise<{ locale: string }>
 }
 
-async function OverviewSection() {
+async function DashboardContent() {
+	'use cache: private'
+	cacheLife({ stale: 60 })
+
 	const userId = await getUserId()
 	if (!userId) redirect('/login')
 
-	const [userLivret, userPee, userPea] = await Promise.all([
-		getUserLivret(userId),
-		getUserPee(userId),
-		getUserPea(userId),
-	])
+	const data = await getDashboardData(userId)
 
-	const livretABalance = userLivret ? parseFloat(userLivret.balance) : 0
-	const peeValue = userPee
-		? calculatePeeValue(
-				parseFloat(userPee.totalShares),
-				parseFloat(userPee.sharePrice)
-			)
-		: 0
-	const peaMetrics = userPea
-		? calculatePortfolioMetrics(userPea.holdings)
-		: { totalInvestment: 0, currentValue: 0, gain: 0, performance: 0 }
-
-	const totalBalance = livretABalance + peeValue + peaMetrics.currentValue
-
-	return (
-		<OverviewCards
-			totalBalance={totalBalance}
-			totalGain={peaMetrics.gain}
-			performance={peaMetrics.performance}
-			livretABalance={livretABalance}
-			livretARate={userLivret?.currentRate ?? null}
-			peeValue={peeValue}
-			peeShares={userPee?.totalShares ?? null}
-		/>
+	const livretAYield = data.livretA.rate ? parseFloat(data.livretA.rate) : 0
+	const totalReturn = calculateTotalReturn(
+		data.totalBalance,
+		data.pea.gain,
+		data.livretA.balance,
+		livretAYield
 	)
-}
 
-async function AccountsSection() {
-	const userId = await getUserId()
-	if (!userId) redirect('/login')
-
-	const [userLivret, userPee, userPea] = await Promise.all([
-		getUserLivret(userId),
-		getUserPee(userId),
-		getUserPea(userId),
-	])
-
-	const livretABalance = userLivret ? parseFloat(userLivret.balance) : 0
-	const peeValue = userPee
-		? calculatePeeValue(
-				parseFloat(userPee.totalShares),
-				parseFloat(userPee.sharePrice)
-			)
-		: 0
-	const peaMetrics = userPea
-		? calculatePortfolioMetrics(userPea.holdings)
-		: { totalInvestment: 0, currentValue: 0, gain: 0, performance: 0 }
-
-	return (
-		<AccountCards
-			livretABalance={livretABalance}
-			livretARate={userLivret?.currentRate ?? null}
-			peeValue={peeValue}
-			peeShares={userPee?.totalShares ?? null}
-			peaValue={peaMetrics.currentValue}
-			peaGain={peaMetrics.gain}
-		/>
+	const { startDate, dataPoints } = calculateChartDateRange(
+		data.signupDate,
+		data.earliestTransaction
 	)
-}
 
-async function ChartsSection() {
-	const userId = await getUserId()
-	if (!userId) redirect('/login')
-
-	const [userLivret, userPee, userPea] = await Promise.all([
-		getUserLivret(userId),
-		getUserPee(userId),
-		getUserPea(userId),
-	])
-
-	const livretABalance = userLivret ? parseFloat(userLivret.balance) : 0
-	const peeValue = userPee
-		? calculatePeeValue(
-				parseFloat(userPee.totalShares),
-				parseFloat(userPee.sharePrice)
-			)
-		: 0
-	const peaMetrics = userPea
-		? calculatePortfolioMetrics(userPea.holdings)
-		: { totalInvestment: 0, currentValue: 0, gain: 0, performance: 0 }
-
-	const totalBalance = livretABalance + peeValue + peaMetrics.currentValue
-
-	const mockWealthData = Array.from({ length: 12 }, (_, i) => {
-		const growthFactor = 0.85 + (i * 0.15) / 11
-		const monthsAgo = 11 - i
-		const date = new Date()
-		date.setMonth(date.getMonth() - monthsAgo)
-		return {
-			date: date.toISOString().split('T')[0],
-			total: totalBalance * growthFactor,
-			livretA: livretABalance * growthFactor,
-			pee: peeValue * growthFactor,
-			pea: peaMetrics.currentValue * growthFactor,
-		}
+	const mockWealthData = generateWealthDataPoints(startDate, dataPoints, {
+		livretA: data.livretA.balance,
+		pee: data.pee.value,
+		pea: data.pea.currentValue,
 	})
-
-	const livretAYield = userLivret ? parseFloat(userLivret.currentRate) : 0
-	const totalReturn =
-		totalBalance > 0
-			? ((peaMetrics.gain + livretABalance * (livretAYield / 100)) /
-					totalBalance) *
-				100
-			: 0
 
 	return (
 		<>
+			<OverviewCards
+				totalBalance={data.totalBalance}
+				totalGain={data.totalGain}
+				performance={data.pea.performance}
+				livretABalance={data.livretA.balance}
+				livretARate={data.livretA.rate}
+				peeValue={data.pee.value}
+				peeShares={data.pee.shares}
+			/>
+
 			<WealthEvolutionChart data={mockWealthData} />
 			<div className="grid gap-sm md:grid-cols-2">
 				<AssetAllocationChart
-					livretA={livretABalance}
-					pee={peeValue}
-					pea={peaMetrics.currentValue}
+					livretA={data.livretA.balance}
+					pee={data.pee.value}
+					pea={data.pea.currentValue}
 				/>
 				<PerformanceMetrics
-					peaPerformance={peaMetrics.performance}
-					peaGain={peaMetrics.gain}
+					peaPerformance={data.pea.performance}
+					peaGain={data.pea.gain}
 					livretAYield={livretAYield}
 					totalReturn={totalReturn}
 				/>
 			</div>
+
+			<AccountCards
+				livretABalance={data.livretA.balance}
+				livretARate={data.livretA.rate}
+				peeValue={data.pee.value}
+				peeShares={data.pee.shares}
+				peaValue={data.pea.currentValue}
+				peaGain={data.pea.gain}
+			/>
 		</>
 	)
 }
@@ -170,20 +103,16 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
 				<p className="text-muted-foreground">{t('subtitle')}</p>
 			</div>
 
-			<Suspense fallback={<OverviewCardsSkeleton />}>
-				<OverviewSection />
-			</Suspense>
-
 			<Suspense
 				fallback={
-					<div className="h-[400px] animate-pulse rounded-lg bg-muted" />
+					<>
+						<OverviewCardsSkeleton />
+						<div className="h-[400px] animate-pulse rounded-lg bg-muted" />
+						<AccountCardsSkeleton />
+					</>
 				}
 			>
-				<ChartsSection />
-			</Suspense>
-
-			<Suspense fallback={<AccountCardsSkeleton />}>
-				<AccountsSection />
+				<DashboardContent />
 			</Suspense>
 		</div>
 	)
