@@ -23,7 +23,7 @@ interface PeaPageProps {
 
 async function PeaContent() {
 	'use cache: private'
-	cacheLife({ stale: 60 })
+	cacheLife('days')
 
 	const t = await getTranslations('pea')
 	const userId = await requireAuthForPage()
@@ -38,7 +38,7 @@ async function PeaContent() {
 					<h1 className="text-3xl font-bold">{t('equitySavingsPlan')}</h1>
 					<p className="text-muted-foreground">{userPea.name}</p>
 				</div>
-				<div className="flex gap-2">
+				<div className="flex flex-wrap gap-2">
 					<RefreshPricesButton />
 					<PeaHoldingForm />
 				</div>

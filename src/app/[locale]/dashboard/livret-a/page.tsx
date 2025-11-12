@@ -23,7 +23,7 @@ interface LivretAPageProps {
 
 async function LivretAContent() {
 	'use cache: private'
-	cacheLife({ stale: 60 })
+	cacheLife('days')
 
 	const t = await getTranslations('livretA')
 	const userId = await requireAuthForPage()
@@ -39,7 +39,7 @@ async function LivretAContent() {
 					<h1 className="text-3xl font-bold">{t('title')}</h1>
 					<p className="text-muted-foreground">{t('manageYourSavings')}</p>
 				</div>
-				<div className="flex gap-2">
+				<div className="flex flex-wrap gap-2">
 					<LivretARateForm currentRate={rate} />
 					<LivretATransactionForm />
 				</div>

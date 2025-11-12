@@ -51,6 +51,7 @@ export function Sidebar() {
 						const isActive = pathname === item.href
 						return (
 							<Link
+								prefetch={true}
 								key={item.href}
 								href={item.href}
 								className={cn(
@@ -70,5 +71,3 @@ export function Sidebar() {
 		</aside>
 	)
 }
-
-

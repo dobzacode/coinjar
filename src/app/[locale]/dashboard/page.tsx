@@ -25,7 +25,7 @@ interface DashboardPageProps {
 
 async function DashboardContent() {
 	'use cache: private'
-	cacheLife({ stale: 60 })
+	cacheLife('days')
 
 	const userId = await getUserId()
 	if (!userId) redirect('/login')

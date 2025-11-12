@@ -22,7 +22,7 @@ interface PeePageProps {
 
 async function PeeContent() {
 	'use cache: private'
-	cacheLife({ stale: 60 })
+	cacheLife('days')
 
 	const t = await getTranslations('pee')
 	const userId = await requireAuthForPage()
@@ -42,7 +42,7 @@ async function PeeContent() {
 					<h1 className="text-3xl font-bold">{t('employeeSavingsPlan')}</h1>
 					<p className="text-muted-foreground">{userPee.companyName}</p>
 				</div>
-				<div className="flex gap-2">
+				<div className="flex flex-wrap gap-2">
 					<PeeAccountForm
 						companyName={userPee.companyName}
 						sharePrice={sharePrice}
