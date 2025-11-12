@@ -12,7 +12,7 @@ type SignupPageProps = {
 
 async function SignupContent({ locale }: { locale: string }) {
 	'use cache: private'
-	cacheLife({ stale: 60 })
+	cacheLife('days')
 
 	await redirectIfAuthenticated(locale)
 	return <SignupForm />

@@ -12,7 +12,7 @@ type LoginPageProps = {
 
 async function LoginContent({ locale }: { locale: string }) {
 	'use cache: private'
-	cacheLife({ stale: 60 })
+	cacheLife('days')
 
 	await redirectIfAuthenticated(locale)
 	return <LoginForm />

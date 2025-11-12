@@ -63,7 +63,7 @@ export function PeeAccountForm({
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
-				<Button variant="outline">
+				<Button variant="outline" className="w-full sm:w-auto">
 					<Settings className="mr-2 h-4 w-4" />
 					{t('updateSharePrice')}
 				</Button>
